@@ -27,7 +27,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .panel { border-left: 1px solid var(--line) }
 
 /* catalog */
-.eras { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px }
+.eras { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px }
+#eras { margin-bottom: 18px }
+.eras[hidden] { display: none }
 .eras button { padding: 5px 12px; border-radius: 99px; border: 1px solid var(--line); font-size: .78rem; color: var(--mut); transition: .2s }
 .eras button:hover { color: var(--fg) }
 .eras button.on { background: var(--fg); color: var(--bg); border-color: var(--fg) }

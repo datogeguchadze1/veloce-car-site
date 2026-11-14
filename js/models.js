@@ -1,3 +1,7 @@
+// Catalog data. Entries with a `top` profile also have a stylised fallback
+// model; entries that only have `glb` need dims (L, W), wheel (r, x[front, rear])
+// and perf for the test drive.
+//
 // Catalog data. Coordinates are metres: x runs along the car (+x = front),
 // y is up, z is across (+z = passenger side). Every model is built
 // procedurally from these profiles by carBuilder.js.
@@ -14,6 +18,7 @@
 export const MODELS = [
   {
     id: '300sl',
+    brand: 'Mercedes-Benz',
     perf: { vmax: 250, t100: 9.5 },   // test drive: top speed km/h, 0–100 s
     name: '300 SL Gullwing',
     chassis: 'W198',
@@ -59,6 +64,7 @@ export const MODELS = [
   },
   {
     id: '190sl',
+    brand: 'Mercedes-Benz',
     perf: { vmax: 170, t100: 13.5 },   // test drive: top speed km/h, 0–100 s
     name: '190 SL',
     chassis: 'W121',
@@ -94,6 +100,7 @@ export const MODELS = [
   },
   {
     id: 'w123',
+    brand: 'Mercedes-Benz',
     perf: { vmax: 200, t100: 10.5 },   // test drive: top speed km/h, 0–100 s
     name: '280 E',
     chassis: 'W123',
@@ -129,6 +136,7 @@ export const MODELS = [
   },
   {
     id: '560sec',
+    brand: 'Mercedes-Benz',
     perf: { vmax: 250, t100: 7 },   // test drive: top speed km/h, 0–100 s
     name: '560 SEC',
     chassis: 'C126',
@@ -164,6 +172,7 @@ export const MODELS = [
   },
   {
     id: 'gclass',
+    brand: 'Mercedes-Benz',
     perf: { vmax: 150, t100: 14 },   // test drive: top speed km/h, 0–100 s
     name: '280 GE',
     chassis: 'W460 G-Class',
@@ -199,6 +208,7 @@ export const MODELS = [
   },
   {
     id: 'sls',
+    brand: 'Mercedes-Benz',
     perf: { vmax: 317, t100: 3.8 },   // test drive: top speed km/h, 0–100 s
     name: 'SLS AMG',
     chassis: 'C197',
