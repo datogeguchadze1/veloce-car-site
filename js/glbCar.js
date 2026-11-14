@@ -10,12 +10,14 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { FINISHES, TINTS, LIGHTS, INTERIORS, RIM_COLORS, defaultTuning } from './carBuilder.js';
 
-let loader;
-function getLoader() {
-  if (loader) return loader;
-  const draco = new DRACOLoader().setDecoderPath('./vendor/three/jsm/libs/draco/gltf/');
-  loader = new GLTFLoader().setDRACOLoader(draco).setMeshoptDecoder(MeshoptDecoder);
-  return loader;
+let draco;
+// A fresh loader per model so its LoadingManager can report progress
+// (files done / files total: the .gltf, the .bin and every texture).
+function makeLoader(onProgress) {
+  if (!draco) draco = new DRACOLoader().setDecoderPath('./vendor/three/jsm/libs/draco/gltf/');
+  const manager = new THREE.LoadingManager();
+  if (onProgress) manager.onProgress = (_url, done, total) => onProgress(total ? done / total : 0);
+  return new GLTFLoader(manager).setDRACOLoader(draco).setMeshoptDecoder(MeshoptDecoder);
 }
 
 const ease = v => v * v * (3 - 2 * v);
@@ -44,9 +46,9 @@ function triCount(mesh) {
   return g.index ? g.index.count / 3 : g.attributes.position.count / 3;
 }
 
-export async function loadGlbCar(m) {
+export async function loadGlbCar(m, onProgress) {
   const cfg = m.glb;
-  const gltf = await getLoader().loadAsync(cfg.file);
+  const gltf = await makeLoader(onProgress).loadAsync(cfg.file);
   const model = gltf.scene;
 
   /* ---------- clean up ---------- */

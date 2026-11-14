@@ -93,10 +93,10 @@ const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(saved))
 const state = { model: null, car: null, inside: false, era: 'all', brand: 'all' };
 
 // Real model if the catalog entry has one and it loads; otherwise the stylised fallback.
-async function makeCar(m) {
+async function makeCar(m, onProgress) {
   let car = null;
   if (m.glb) {
-    try { car = await loadGlbCar(m); }
+    try { car = await loadGlbCar(m, onProgress); }
     catch (err) { console.warn(`[garage] ${m.id}: .glb failed, using the stylised model`, err); }
   }
   if (!car) {
@@ -150,9 +150,10 @@ async function selectModel(id, { push = true } = {}) {
   if (drive.active) drive.stop();
   const ld = $('#loading');
   ld.textContent = 'იტვირთება…';
+  const progress = f => { if (token === selectToken) ld.textContent = `იტვირთება… ${Math.round(f * 100)}%`; };
   ld.classList.remove('off');
   let car;
-  try { car = await makeCar(m); }
+  try { car = await makeCar(m, progress); }
   catch (err) {
     console.warn(err);
     if (token === selectToken) ld.textContent = 'მოდელი ვერ ჩაიტვირთა. სცადე მოგვიანებით.';
@@ -202,7 +203,7 @@ function renderList() {
   $('#list').innerHTML = list.map(m => `
     <li data-id="${m.id}" class="${state.model && state.model.id === m.id ? 'on' : ''}">
       <button class="card" aria-label="${m.name} ${m.year}">
-        <img alt="" src="${thumbs[m.id] || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">
+        <img alt="" loading="lazy" src="${thumbs[m.id] || `thumbs/${m.id}.jpg`}" onerror="this.onerror=null;this.src='data:image/gif;base64,R0lGODlhAQABAAAAACw='">
         <span class="meta"><span class="yr">${m.year} · ${m.brand}</span><br><span class="nm">${m.name}</span><br><span class="ch">${m.chassis} · ${m.body}</span></span>
       </button>
     </li>`).join('');
@@ -383,6 +384,8 @@ renderList();
 selectModel(location.hash.slice(1) || MODELS[0].id, { push: false });
 resize();
 addEventListener('hashchange', () => { const id = location.hash.slice(1); if (id && (!state.model || id !== state.model.id)) selectModel(id, { push: false }); });
-setTimeout(makeThumbs, 300);
+// Catalog pictures are static files (thumbs/<id>.jpg) so opening the site only
+// downloads the selected car. Open the site with ?thumbs to render them anew.
+if (new URLSearchParams(location.search).has('thumbs')) setTimeout(makeThumbs, 300);
 
-window.__garage = { state, camera, controls, selectModel, setInside, renderer, scene, MODELS, drive };
+window.__garage = { state, camera, controls, selectModel, setInside, renderer, scene, MODELS, drive, thumbs };

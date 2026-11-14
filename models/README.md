@@ -13,13 +13,17 @@ node tools/inspect-glb.mjs models/300sl.glb
 ```
 ბრძანება ბეჭდავს ობიექტების ხეს, მასალებს და ზომებს (კარებისა და კაპოტის სახელებს ეძებს). შედეგი გამომიგზავნე და `js/models.js`-ში ჩანაწერს მე დავწერ.
 
-## 3. შემცირება (სურვილისამებრ, თუ ფაილი დიდია)
+## 3. შეკუმშვა (ყოველი ახალი მოდელისთვის)
 ```bash
-npx @gltf-transform/cli optimize models/300sl.glb models/300sl.min.glb \
-  --compress meshopt --texture-compress webp --texture-size 2048
+python3 tools/optimize_gltf.py models/<id> /tmp/<id>-opt   # საჭიროა numpy და Pillow
+# შეამოწმე და შემდეგ ჩაანაცვლე models/<id> შეკუმშული საქაღალდით
 ```
+ჩვეულებრივ 2–3-ჯერ ამცირებს ზომას: გეომეტრია კვანტიზდება (KHR_mesh_quantization), გამოუყენებელი UV არხები და ტანგენტები მოიშორება, ტექსტურები მცირდება და JPEG-ად გადაიყვანება.
 
-## 4. `js/models.js`-ში ჩანაწერი
+## 4. კატალოგის სურათი
+კატალოგის სურათები სტატიკური ფაილებია `thumbs/<id>.jpg`, რომ საიტმა გახსნისას ყველა მოდელი არ ჩამოტვირთოს. ახალი მანქანის დამატების შემდეგ გახსენი საიტი `?thumbs` პარამეტრით (მაგ. `http://localhost:8000/?thumbs`): ის თავიდან დახატავს სურათებს, ხოლო `window.__garage.thumbs` შეიცავს მათ data-URL-ებს.
+
+## 5. `js/models.js`-ში ჩანაწერი
 ```js
 glb: {
   file: 'models/300sl.glb',
