@@ -77,7 +77,21 @@ export function createEngineSound({ cyl = 6, layout = 'inline', ctx } = {}) {
   const noiseGain = ctx.createGain(); noiseGain.gain.value = 0;
   noise.connect(band); band.connect(noiseGain); noiseGain.connect(master);
 
-  src.start(); noise.start();
+  // tyre squeal: narrow band of noise, wobbling a little
+  const sq = ctx.createBufferSource(); sq.buffer = noise.buffer; sq.loop = true;
+  const sqBand = ctx.createBiquadFilter(); sqBand.type = 'bandpass'; sqBand.frequency.value = 2100; sqBand.Q.value = 7;
+  const sqGain = ctx.createGain(); sqGain.gain.value = 0;
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 9;
+  const lfoAmt = ctx.createGain(); lfoAmt.gain.value = 180;
+  lfo.connect(lfoAmt); lfoAmt.connect(sqBand.frequency);
+  sq.connect(sqBand); sqBand.connect(sqGain); sqGain.connect(master);
+  // impacts: a low thud of filtered noise
+  const thudLow = ctx.createBiquadFilter(); thudLow.type = 'lowpass'; thudLow.frequency.value = 260;
+  const thudGain = ctx.createGain(); thudGain.gain.value = 0;
+  thudLow.connect(thudGain); thudGain.connect(master);
+  const thudSrc = ctx.createBufferSource(); thudSrc.buffer = noise.buffer; thudSrc.loop = true; thudSrc.connect(thudLow);
+
+  src.start(); noise.start(); sq.start(); lfo.start(); thudSrc.start();
 
   const fire = rpm => (rpm / 60) * (cyl / 2);
   return {
@@ -91,6 +105,17 @@ export function createEngineSound({ cyl = 6, layout = 'inline', ctx } = {}) {
       band.frequency.setTargetAtTime(400 + rpm * 0.35, t, T);
       noiseGain.gain.setTargetAtTime(0.03 + load * 0.12 * (rpm / 7000), t, 0.06);
       master.gain.setTargetAtTime(on ? 0.32 : 0, t, 0.08);
+    },
+    // 0 … 1: how hard the tyres are sliding
+    squeal(level, t = ctx.currentTime) {
+      sqGain.gain.setTargetAtTime(Math.min(1, level) * 0.5, t, 0.05);
+      sqBand.frequency.setTargetAtTime(1800 + level * 700, t, 0.1);
+    },
+    // a hit against the barrier; strength 0 … 1
+    thud(strength, t = ctx.currentTime) {
+      thudGain.gain.cancelScheduledValues(t);
+      thudGain.gain.setValueAtTime(Math.min(1, strength) * 3, t);
+      thudGain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
     },
     close() { if (ctx.close) ctx.close(); },
   };

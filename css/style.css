@@ -152,17 +152,23 @@ body.driving .stage { height: auto; min-height: 0 }
 .dh-gear { display: inline-block; min-width: 1.6em; margin-right: 10px; padding: 2px 8px; border-radius: 8px; background: #0009; border: 1px solid #ffffff40; font-size: 1.4rem; vertical-align: 0.9em; text-align: center }
 .dh-speed i { display: block; font-style: normal; margin-top: 6px; font-size: .75rem; color: #9be37a; opacity: 0; transition: opacity .3s; font-family: 'Noto Sans Georgian', sans-serif }
 .dh-help { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-family: 'Noto Sans Georgian', sans-serif; font-size: .72rem; color: #fffc }
+.dh-drift { position: absolute; left: 50%; top: 18%; transform: translate(-50%, 0) scale(.85); text-align: center; opacity: 0; transition: opacity .2s, transform .2s; line-height: 1 }
+.dh-drift.on { opacity: 1; transform: translate(-50%, 0) scale(1) }
+.dh-drift b { display: block; font-size: clamp(2rem, 6vw, 3.4rem); font-weight: 900; color: #ffd23f; text-shadow: 0 2px 14px #000a }
+.dh-drift small { font-family: 'Noto Sans Georgian', sans-serif; font-size: .9rem; letter-spacing: .15em; color: #fff }
+.dh-lap small { display: block }
 .dh-touch { display: none }
 @media (pointer: coarse), (max-width: 860px) {
   .dh-help { display: none }
-  .dh-speed { right: 50%; transform: translateX(50%); bottom: auto; top: 76px; text-align: center }
+  .dh-speed { right: 50%; transform: translateX(50%); bottom: 92px; text-align: center }
   .dh-rpm { margin: 0 auto 8px; width: 140px }
-  .dh-touch { display: flex; justify-content: space-between; position: absolute; left: 12px; right: 12px; bottom: 16px }
-  .dh-touch div { display: flex; gap: 10px }
-  .dh-touch button { width: 70px; height: 70px; border-radius: 50%; background: #0008; border: 2px solid #ffffff50; color: #fff; font-size: 1.5rem; touch-action: none; user-select: none; -webkit-user-select: none }
+  .dh-touch { display: flex; justify-content: space-between; position: absolute; left: 10px; right: 10px; bottom: 14px }
+  .dh-touch div { display: flex; gap: 8px }
+  .dh-touch button { width: 60px; height: 60px; border-radius: 50%; background: #0008; border: 2px solid #ffffff50; color: #fff; font-size: 1.5rem; touch-action: none; user-select: none; -webkit-user-select: none }
   .dh-touch button.on { background: #4fb3ffaa; border-color: #fff }
   .dh-touch [data-k="gas"] { background: #1e7a3caa }
   .dh-touch [data-k="brake"] { background: #8a1f2aaa }
+  .dh-touch [data-k="hand"] { background: #7a5a12aa; font-size: 1.2rem }
   body.driving .stage { position: fixed; inset: 0; height: auto; z-index: 50 }
   body.driving { overflow: hidden }
 }
