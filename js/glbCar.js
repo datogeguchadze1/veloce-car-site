@@ -199,7 +199,7 @@ export async function loadGlbCar(m) {
   };
 
   const car = {
-    source: 'glb', root, body, doors, hood, trunk, model: m, caps, baseTuning,
+    source: 'glb', root, body, doors, hood, trunk, model: m, caps, baseTuning, wheels: [],
     driverEye: eye, size, tuning: null,
     open: { doors: 0, hood: 0, trunk: 0 },
     target: { doors: 0, hood: 0, trunk: 0 },

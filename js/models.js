@@ -14,6 +14,7 @@
 export const MODELS = [
   {
     id: '300sl',
+    perf: { vmax: 250, t100: 9.5 },   // test drive: top speed km/h, 0–100 s
     name: '300 SL Gullwing',
     chassis: 'W198',
     year: 1954,
@@ -58,6 +59,7 @@ export const MODELS = [
   },
   {
     id: '190sl',
+    perf: { vmax: 170, t100: 13.5 },   // test drive: top speed km/h, 0–100 s
     name: '190 SL',
     chassis: 'W121',
     year: 1955,
@@ -92,6 +94,7 @@ export const MODELS = [
   },
   {
     id: 'w123',
+    perf: { vmax: 200, t100: 10.5 },   // test drive: top speed km/h, 0–100 s
     name: '280 E',
     chassis: 'W123',
     year: 1976,
@@ -126,6 +129,7 @@ export const MODELS = [
   },
   {
     id: '560sec',
+    perf: { vmax: 250, t100: 7 },   // test drive: top speed km/h, 0–100 s
     name: '560 SEC',
     chassis: 'C126',
     year: 1985,
@@ -160,6 +164,7 @@ export const MODELS = [
   },
   {
     id: 'gclass',
+    perf: { vmax: 150, t100: 14 },   // test drive: top speed km/h, 0–100 s
     name: '280 GE',
     chassis: 'W460 G-Class',
     year: 1979,
@@ -194,6 +199,7 @@ export const MODELS = [
   },
   {
     id: 'sls',
+    perf: { vmax: 317, t100: 3.8 },   // test drive: top speed km/h, 0–100 s
     name: 'SLS AMG',
     chassis: 'C197',
     year: 2010,
