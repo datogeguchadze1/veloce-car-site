@@ -6,9 +6,11 @@
 ## 3D models
 კატალოგის ყველა მანქანა ქვემოთ ჩამოთვლილი ავტორების ნამუშევარია. მოდელის ფაილები ვებისთვის შეკუმშულია (`tools/optimize_gltf.py`): გეომეტრია კვანტიზებულია, გამოუყენებელი UV არხები მოშორებულია, ტექსტურები შემცირებული და JPEG-ად გადაყვანილია. ფორმა და მასალები არ შეცვლილა. თითოეულ საქაღალდეში `license.txt` ორიგინალ ლიცენზიას შეიცავს. ტუნინგი ფერებს მხოლოდ ბრაუზერში ცვლის, ზოგ მოდელზე კი ზედმეტი ფენები (motion-blur დისკები, გატეხილი მინა, იატაკი) ჩატვირთვისას იმალება.
 
+AMG GT (Yan Carvalho): ფაილში მანქანა 13°-ით მობრუნებული იყო და სალონი ერთ უფერო მასალაზე იყო. ჩატვირთვისას მოდელი სწორდება, სალონი ნაწილებად იყოფა და იღებება, ხელსაწყოები და ეკრანი კი კოდით ემატება. გეომეტრია არ შეცვლილა.
+
 BMW M3 (E36) ლიცენზიაა CC BY-NC-SA 4.0: მისი კომერციული გამოყენება აკრძალულია. შეკუმშული M3-ის ფაილებიც იმავე CC BY-NC-SA 4.0 ლიცენზიით ვრცელდება. თუ საიტი ოდესმე კომერციული გახდება, ეს მოდელი უნდა ამოიღო ან CC BY ლიცენზიის მქონე მოდელით შეცვალო.
 
-This work is based on "Mercedes-Benz 300 SL Gullwing" by Lexyc16 (https://sketchfab.com/Lexyc16), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). The model's colour is changed by the tuning panel; geometry is unmodified.
+This work is based on "Mercedes-Benz 300 SL Gullwing" by Lexyc16 (https://sketchfab.com/Lexyc16), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: files compressed; the placeholder interior (a flat lid with two slabs) is removed at load time and replaced by a cabin built in code (js/cabinKit.js); colours are changed by the tuning panel.
 
 This work is based on "2010 Mercedes SLS AMG" by Dave Love SketchFab (https://sketchfab.com/Tyler_Dave), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Two overlay meshes (cracked-glass and motion-blur wheels) are hidden; colours are changed by the tuning panel.
 

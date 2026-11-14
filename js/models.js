@@ -36,7 +36,9 @@ export const MODELS = [
       file: 'models/300sl/scene.gltf',
       rotY: Math.PI / 2,
       paint: ['main_color'],
-      eye: [-0.2, 0.98, -0.36],
+      // the file only has a flat lid with two slabs for an interior: cut it out and build a cabin
+      strip: [{ material: /^black$/, box: [-1.4, 0.66, -0.7, 0.95, 1.03, 0.7] }],
+      cabin: '300sl',
       credit: {
         title: 'Mercedes-Benz 300 SL Gullwing', author: 'Lexyc16', license: 'CC BY 4.0',
         url: 'https://sketchfab.com/3d-models/mercedes-benz-300-sl-gullwing-505241c829c540a4921533000736904e',
@@ -121,11 +123,23 @@ export const MODELS = [
     wheel: { r: 0.34, x: [1.36, -1.27] },
     glb: {
       file: 'models/amggt/scene.gltf',
-      rotY: Math.PI,
+      rotY: Math.PI - 0.2297,   // the file has the car yawed by 13.2°
       remove: ['Plane_4'],
       paint: ['Material.001'],
-      eye: [-0.65, 0.95, -0.36],
-      interior: ['Material.004'], defaults: { interior: 'black' },   // the cabin is untextured white in the file
+      // The whole cabin is one untextured material: split it into parts and give each its own look.
+      split: [{
+        material: /^Material\.004$/,
+        parts: [
+          { name: 'amggt_steer', boxes: [[-0.17, 0.55, -0.65, 0.045, 0.95, -0.23]], look: { color: 0x101012, roughness: 0.55 } },
+          { name: 'amggt_seats', minTris: 1000, boxes: [[-0.95, 0.15, -0.72, -0.1, 1.12, -0.17], [-0.95, 0.15, 0.13, -0.1, 1.12, 0.72]], look: { color: 0x1c1c1e, roughness: 0.5, interior: true } },
+          { name: 'amggt_doors', minTris: 3000, boxes: [[-0.9, 0.2, 0.66, 0.45, 0.95, 0.98], [-0.9, 0.2, -0.98, 0.45, 0.95, -0.66]], look: { color: 0x232326, roughness: 0.65 } },
+          { name: 'amggt_buttons', maxTris: 300, boxes: [[-0.45, 0.55, -0.2, -0.12, 0.67, 0.17]], look: { color: 0xb9bcc2, roughness: 0.3, metalness: 0.9 } },
+          { name: 'amggt_pedals', boxes: [[0.44, 0.15, -0.58, 0.58, 0.52, -0.26]], look: { color: 0xb9bcc2, roughness: 0.35, metalness: 0.9 } },
+        ],
+        rest: { color: 0x17171a, roughness: 0.78, metalness: 0 },
+      }],
+      steer: [/^amggt_steer$/],
+      cabin: 'amggt',
       credit: { title: 'Mercedes Benz AMG GT', author: 'Yan Carvalho', license: 'CC BY 4.0', url: 'https://sketchfab.com/3d-models/mercedes-benz-amg-gt-661dcab94455463784651a3ebc63cfb9' },
     },
   },

@@ -9,6 +9,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { FINISHES, TINTS, LIGHTS, INTERIORS, RIM_COLORS, defaultTuning } from './tuning.js';
+import { buildCabin } from './cabinKit.js';
 
 let draco;
 // A fresh loader per model so its LoadingManager can report progress
@@ -40,6 +41,81 @@ function findNodes(root, pats) {
   return out.filter(o => !out.some(p => p !== o && isAncestor(p, o)));
 }
 function isAncestor(a, b) { for (let p = b.parent; p; p = p.parent) if (p === a) return true; return false; }
+
+// Connected pieces of a mesh, with their bounding boxes in car coordinates.
+function pieces(mesh, toBody) {
+  const geo = mesh.geometry, pos = geo.attributes.position, idx = geo.index;
+  const M = new THREE.Matrix4().multiplyMatrices(toBody, mesh.matrixWorld), v = new THREE.Vector3();
+  const P = [], key = new Map(), rep = new Int32Array(pos.count), parent = [];
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(M);
+    const k = `${Math.round(v.x * 500)},${Math.round(v.y * 500)},${Math.round(v.z * 500)}`;
+    if (!key.has(k)) { key.set(k, P.length); P.push(v.clone()); parent.push(P.length - 1); }
+    rep[i] = key.get(k);
+  }
+  const find = a => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+  const tris = (idx ? idx.count : pos.count) / 3, at = i => (idx ? idx.getX(i) : i);
+  for (let t = 0; t < tris; t++) { const a = find(rep[at(t * 3)]); parent[find(rep[at(t * 3 + 1)])] = a; parent[find(rep[at(t * 3 + 2)])] = a; }
+  const info = new Map();     // root → { box, tris }
+  for (let i = 0; i < P.length; i++) { const r = find(i); if (!info.has(r)) info.set(r, { box: new THREE.Box3(), tris: 0 }); info.get(r).box.expandByPoint(P[i]); }
+  const rootOf = t => find(rep[at(t * 3)]);
+  for (let t = 0; t < tris; t++) info.get(rootOf(t)).tris++;
+  return { info, tris, at, rootOf };
+}
+const box6 = b => new THREE.Box3(new THREE.Vector3(b[0], b[1], b[2]), new THREE.Vector3(b[3], b[4], b[5]));
+
+// Removes whole pieces of a mesh that lie inside `box` (car coordinates).
+// Used to cut placeholder interiors out of a merged mesh.
+function stripPieces(mesh, toBody, box) {
+  const { info, tris, at, rootOf } = pieces(mesh, toBody);
+  const gone = new Set([...info].filter(([, c]) => box.containsBox(c.box)).map(([r]) => r));
+  if (!gone.size) return;
+  const keep = [];
+  for (let t = 0; t < tris; t++) if (!gone.has(rootOf(t))) keep.push(at(t * 3), at(t * 3 + 1), at(t * 3 + 2));
+  mesh.geometry.setIndex(keep);
+}
+
+// Splits pieces of a merged mesh into meshes of their own, one per rule, so
+// they can have their own material or move. A rule takes every piece whose
+// bounding box lies inside one of its boxes (first matching rule wins).
+function splitPieces(mesh, toBody, rules) {
+  const { info, tris, at, rootOf } = pieces(mesh, toBody);
+  const owner = new Map();
+  for (const [r, c] of info) {
+    const i = rules.findIndex(rule => (rule.minTris === undefined || c.tris >= rule.minTris) && (rule.maxTris === undefined || c.tris <= rule.maxTris)
+      && rule.boxes.some(b => box6(b).containsBox(c.box)));
+    if (i >= 0) owner.set(r, i);
+  }
+  const lists = rules.map(() => []), rest = [];
+  for (let t = 0; t < tris; t++) { const i = owner.get(rootOf(t)); (i === undefined ? rest : lists[i]).push(at(t * 3), at(t * 3 + 1), at(t * 3 + 2)); }
+  const out = [];
+  lists.forEach((list, i) => {
+    if (!list.length) return;
+    const g = new THREE.BufferGeometry();
+    for (const [name, attr] of Object.entries(mesh.geometry.attributes)) g.setAttribute(name, attr);
+    g.setIndex(list);
+    const part = new THREE.Mesh(g, mesh.material);
+    part.name = rules[i].name;
+    part.position.copy(mesh.position); part.quaternion.copy(mesh.quaternion); part.scale.copy(mesh.scale);
+    part.castShadow = mesh.castShadow; part.receiveShadow = true;
+    mesh.parent.add(part);
+    out.push({ rule: rules[i], mesh: part });
+  });
+  mesh.geometry.setIndex(rest);
+  return out;
+}
+
+// Up to ~n vertices actually used by the nodes' triangles, in car coordinates.
+function samplePoints(nodes, toBody, n) {
+  const pts = [], v = new THREE.Vector3();
+  nodes.forEach(node => node.traverse(o => {
+    if (!o.isMesh) return;
+    const pos = o.geometry.attributes.position, idx = o.geometry.index, count = idx ? idx.count : pos.count;
+    const step = Math.max(1, Math.floor(count / n));
+    for (let i = 0; i < count; i += step) pts.push(v.fromBufferAttribute(pos, idx ? idx.getX(i) : i).applyMatrix4(o.matrixWorld).applyMatrix4(toBody).clone());
+  }));
+  return pts;
+}
 
 function triCount(mesh) {
   const g = mesh.geometry;
@@ -98,6 +174,35 @@ export async function loadGlbCar(m, onProgress) {
   });
   materials.forEach(mt => { if ('envMapIntensity' in mt) mt.envMapIntensity = 1; });
 
+  // Split merged meshes into parts with materials of their own (see splitPieces).
+  const splitInterior = [];
+  if (cfg.split) {
+    body.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
+    const made = new Map();
+    const look = (base, name, look) => {
+      if (!made.has(name)) {
+        const mt = base.clone(); mt.name = name; mt.map = null;
+        if (look.color !== undefined) mt.color.setHex(look.color);
+        if (look.roughness !== undefined) mt.roughness = look.roughness;
+        if (look.metalness !== undefined) mt.metalness = look.metalness;
+        made.set(name, mt); materials.add(mt);
+        if (look.interior) splitInterior.push(mt);
+      }
+      return made.get(name);
+    };
+    for (const sp of toList(cfg.split)) {
+      for (const o of [...meshes]) {
+        if (!toList(o.material).some(mt => matches(mt.name, sp.material))) continue;
+        for (const { rule, mesh: part } of splitPieces(o, inv, sp.parts)) {
+          if (rule.look) part.material = look(o.material, `${rule.name}_mat`, rule.look);
+          meshes.push(part);
+        }
+        if (sp.rest) o.material = look(o.material, `${o.material.name}_rest`, sp.rest);
+      }
+    }
+  }
+
   // MeshStandardMaterial → MeshPhysicalMaterial, so clear-coat works on paint.
   const upgrade = mt => {
     if (mt.isMeshPhysicalMaterial || !mt.isMeshStandardMaterial) return mt;
@@ -131,7 +236,22 @@ export async function loadGlbCar(m, onProgress) {
   const glass = cfg.glass ? byName(cfg.glass) : [...materials].filter(mt => GLASS_RE.test(mt.name) || (mt.transparent && mt.opacity < 0.95));
   const rimMats = byName(cfg.rimMaterials);
   const lightMats = byName(cfg.lights);
-  const interiorMats = byName(cfg.interior);
+  const interiorMats = [...byName(cfg.interior), ...splitInterior];
+
+  // Code-built cabin (cabinKit.js) for files without a usable interior:
+  // first cut the placeholder pieces out, then build the real thing.
+  let cabin = null;
+  if (cfg.strip || cfg.cabin) {
+    body.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
+    for (const st of toList(cfg.strip)) {
+      meshes.forEach(o => { if (toList(o.material).some(mt => matches(mt.name, st.material))) stripPieces(o, inv, box6(st.box)); });
+    }
+    if (cfg.cabin) {
+      cabin = buildCabin(cfg.cabin, body, paint[0]);
+      if (cabin) interiorMats.push(...cabin.interiorMats);
+    }
+  }
 
   const snap = mt => ({
     color: mt.color ? mt.color.clone() : null,
@@ -200,12 +320,7 @@ export async function loadGlbCar(m, onProgress) {
   let steer = null;
   const steerNodes = findNodes(model, cfg.steer);
   if (steerNodes.length) {
-    const pts = [], v = new THREE.Vector3();
-    steerNodes.forEach(n => n.traverse(o => {
-      if (!o.isMesh) return;
-      const pos = o.geometry.attributes.position, step = Math.max(1, Math.floor(pos.count / 600));
-      for (let i = 0; i < pos.count; i += step) pts.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).applyMatrix4(toBody).clone());
-    }));
+    const pts = samplePoints(steerNodes, toBody, 600);
     const box = new THREE.Box3().setFromPoints(pts), c = box.getCenter(new THREE.Vector3());
     let axis = new THREE.Vector3(1, 0, 0), best = Infinity;
     for (let deg = -75; deg <= 75; deg += 1) {
@@ -227,12 +342,7 @@ export async function loadGlbCar(m, onProgress) {
     if (!gc) continue;
     const nodes = findNodes(model, gc.node);
     if (!nodes.length) continue;
-    const pts = [], v = new THREE.Vector3();
-    nodes.forEach(n => n.traverse(o => {
-      if (!o.isMesh) return;
-      const pos = o.geometry.attributes.position, step = Math.max(1, Math.floor(pos.count / 500));
-      for (let i = 0; i < pos.count; i += step) pts.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).applyMatrix4(toBody).clone());
-    }));
+    const pts = samplePoints(nodes, toBody, 500);
     const box = new THREE.Box3().setFromPoints(pts), c = box.getCenter(new THREE.Vector3());
     const len = box.getSize(new THREE.Vector3()).length();
     // dial normal: explicit, else the thinnest direction of the needle in the vertical plane
@@ -272,7 +382,7 @@ export async function loadGlbCar(m, onProgress) {
   wheelNodes.forEach(n => root.attach(n));
 
   /* ---------- driver's eye ---------- */
-  const eye = cfg.eye
+  const eye = cabin && cabin.eye ? new THREE.Vector3(...cabin.eye) : cfg.eye
     ? new THREE.Vector3(...cfg.eye)
     : new THREE.Vector3(-0.02 * size.x, size.y * 0.8, -size.z * 0.22);
 
@@ -297,8 +407,8 @@ export async function loadGlbCar(m, onProgress) {
     target: { doors: 0, hood: 0, trunk: 0 },
     credit: cfg.credit || null,
     noInterior: !!cfg.noInterior,
-    setSteer(a) { if (steer) steer.pivot.quaternion.setFromAxisAngle(steer.axis, -a); },
-    setGauges(kmh, rpm) { turnGauge(gauges.speedo, Math.abs(kmh)); turnGauge(gauges.tacho, rpm); },
+    setSteer(a) { if (steer) steer.pivot.quaternion.setFromAxisAngle(steer.axis, -a); if (cabin) cabin.setSteer(a); },
+    setGauges(kmh, rpm) { turnGauge(gauges.speedo, Math.abs(kmh)); turnGauge(gauges.tacho, rpm); if (cabin) cabin.setGauges(kmh, rpm); },
     hasGauges: Object.keys(gauges).length > 0, gauges,
     applyTuning(tu) {
       this.tuning = { ...tu };
