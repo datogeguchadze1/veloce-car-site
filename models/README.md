@@ -36,6 +36,9 @@ glb: {
   wheels: ['Wheel_FL', 'Wheel_FR', 'Wheel_RL', 'Wheel_RR'],
   paint: ['CarPaint'],          // მასალები, რომლებსაც ტუნინგი ფერს უცვლის (თუ არ მიუთითე, მე გამოვიცნობ)
   glass: ['Glass'], rimMaterials: ['Rim'], lights: ['Headlight'], interior: ['Leather'],
+  strip: [{ material: 'black', box: [x0,y0,z0, x1,y1,z1] }], // ამოჭრის ნაწილებს, რომლებიც მთლიანად ყუთშია
+  split: [{ material: 'Interior', parts: [{ name: 'seats', boxes: [[…]], look: { color: 0x1c1c1e, interior: true } }] }], // შერწყმულ მეშს ნაწილებად ყოფს
+  cabin: '300sl',               // js/cabinKit.js-ის რეცეპტი (კოდით აგებული სალონი)
   eye: [0.1, 1.0, -0.4],        // მძღოლის თვალის წერტილი მეტრებში (x წინ, y მაღლა, z მგზავრისკენ)
   credit: { title: 'Mercedes 300 SL', author: 'ავტორის სახელი', license: 'CC-BY 4.0', url: 'https://sketchfab.com/…' },
 },
