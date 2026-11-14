@@ -82,6 +82,46 @@ const mesh = (g, m, shadow = true) => {
   return o;
 };
 
+/* ---------- printed textures for the stylised cabins ---------- */
+const DIAL_A0 = -120 * Math.PI / 180, DIAL_SWEEP = 240 * Math.PI / 180;   // needle angle from 12 o'clock, clockwise
+
+function dialTexture(max, step, label, redFrom) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#0b0b0d'; g.beginPath(); g.arc(128, 128, 127, 0, 7); g.fill();
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 22px sans-serif'; g.lineCap = 'butt';
+  for (let v = 0; v <= max + 1e-6; v += step / 2) {
+    const th = DIAL_A0 + DIAL_SWEEP * v / max, major = Math.abs(v / step - Math.round(v / step)) < 1e-6;
+    const sx = Math.sin(th), cy = -Math.cos(th), r1 = major ? 94 : 104;
+    g.strokeStyle = redFrom != null && v >= redFrom ? '#ff3b3b' : '#f2f2f2'; g.lineWidth = major ? 5 : 2;
+    g.beginPath(); g.moveTo(128 + sx * r1, 128 + cy * r1); g.lineTo(128 + sx * 116, 128 + cy * 116); g.stroke();
+    if (major) { g.fillStyle = g.strokeStyle; g.fillText(String(Math.round(v)), 128 + sx * 72, 128 + cy * 72); }
+  }
+  g.fillStyle = '#9aa0aa'; g.font = '16px sans-serif'; g.fillText(label, 128, 186);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+function stackTexture(era) {
+  const c = document.createElement('canvas'); c.width = 300; c.height = 200;
+  const g = c.getContext('2d');
+  g.fillStyle = '#141416'; g.fillRect(0, 0, 300, 200);
+  for (const x of [20, 160]) {                       // air vents
+    g.fillStyle = '#050506'; g.fillRect(x, 14, 120, 44);
+    g.strokeStyle = '#3a3c40'; g.lineWidth = 3;
+    for (let y = 22; y < 56; y += 9) { g.beginPath(); g.moveTo(x + 4, y); g.lineTo(x + 116, y); g.stroke(); }
+  }
+  if (era === 'modern') { g.fillStyle = '#0d2233'; g.fillRect(40, 72, 220, 70); g.fillStyle = '#4fb3ff'; g.font = '18px sans-serif'; g.fillText('FM 101.5', 60, 112); }
+  else {                                             // classic radio: dial strip and knobs
+    g.fillStyle = '#d8c9a3'; g.fillRect(70, 84, 160, 26);
+    g.fillStyle = '#7a1c1c'; g.fillRect(140, 84, 3, 26);
+    for (const x of [40, 260]) { g.fillStyle = '#c9ccd1'; g.beginPath(); g.arc(x, 97, 16, 0, 7); g.fill(); }
+  }
+  for (let i = 0; i < 3; i++) { g.fillStyle = '#c9ccd1'; g.beginPath(); g.arc(80 + i * 70, 168, 14, 0, 7); g.fill(); g.fillStyle = '#222'; g.beginPath(); g.arc(80 + i * 70, 168, 9, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 /* ---------- materials ---------- */
 
 export function createMaterials() {
@@ -445,14 +485,44 @@ export function buildCar(m, tuning, mats = createMaterials()) {
   const dash = new THREE.BoxGeometry(0.38, 0.24, wIn); dash.translate(w0 - 0.31, beltY - 0.1, 0);
   intr.add(mesh(dash, mats.interior, false));
   if (m.era !== 'modern') {
-    const wd = new THREE.BoxGeometry(0.02, 0.05, wIn * 0.9); wd.translate(w0 - 0.5, beltY - 0.06, 0);
+    const wd = new THREE.BoxGeometry(0.02, 0.04, wIn * 0.9); wd.translate(w0 - 0.5, beltY - 0.135, 0);
     intr.add(mesh(wd, mats.wood, false));
   }
   const drvZ = -W * 0.22;
-  for (const gz of [-0.08, 0.08]) {
-    const gg = new THREE.CylinderGeometry(0.04, 0.04, 0.012, 24);
-    gg.rotateZ(Math.PI / 2); gg.translate(w0 - 0.505, beltY - 0.04, drvZ + gz);
-    intr.add(mesh(gg, mats.gauge, false));
+  // instrument cluster: two printed dials with moving needles under a hood
+  const vTop = (m.perf && m.perf.vmax) || 200;
+  const dialMax = { speedo: Math.ceil((vTop + 20) / 40) * 40, tacho: m.era === 'classic' ? 7000 : 8000 };
+  const needles = {};
+  const faceX = w0 - 0.507;
+  [['tacho', -0.075], ['speedo', 0.075]].forEach(([kind, dz]) => {
+    const isSpeed = kind === 'speedo';
+    const tex = dialTexture(isSpeed ? dialMax.speedo : dialMax.tacho / 1000, isSpeed ? 40 : 1, isSpeed ? 'km/h' : 'x1000', isSpeed ? null : dialMax.tacho / 1000 - 1.5);
+    const dialY = beltY - 0.015;
+    const face = new THREE.CircleGeometry(0.066, 40); face.rotateY(-Math.PI / 2); face.translate(faceX, dialY, drvZ + dz);
+    intr.add(mesh(face, new THREE.MeshBasicMaterial({ map: tex }), false));
+    const ringG = new THREE.TorusGeometry(0.067, 0.004, 8, 40); ringG.rotateY(Math.PI / 2); ringG.translate(faceX - 0.002, dialY, drvZ + dz);
+    intr.add(mesh(ringG, mats.chrome, false));
+    const ng = new THREE.BoxGeometry(0.003, 0.052, 0.005); ng.translate(0, 0.02, 0);
+    const needle = new THREE.Mesh(ng, new THREE.MeshBasicMaterial({ color: 0xff4a2e }));
+    const capG = new THREE.CylinderGeometry(0.007, 0.007, 0.006, 12); capG.rotateZ(Math.PI / 2);
+    const piv = new THREE.Group(); piv.add(needle, new THREE.Mesh(capG, mats.interiorDark));
+    piv.position.set(faceX - 0.005, dialY, drvZ + dz);
+    piv.rotation.x = DIAL_A0;
+    intr.add(piv);
+    needles[kind] = piv;
+  });
+  const hoodG = new THREE.BoxGeometry(0.07, 0.012, 0.32); hoodG.translate(faceX - 0.02, beltY + 0.06, drvZ);
+  const backG = new THREE.BoxGeometry(0.01, 0.16, 0.32); backG.translate(faceX + 0.006, beltY - 0.015, drvZ);
+  intr.add(mesh(backG, mats.interiorDark, false));
+  intr.add(mesh(hoodG, mats.interiorDark, false));
+  // centre stack with vents and a radio, glovebox line
+  const stack = new THREE.PlaneGeometry(0.3, 0.2); stack.rotateY(-Math.PI / 2); stack.translate(faceX, beltY - 0.1, 0);
+  intr.add(mesh(stack, new THREE.MeshBasicMaterial({ map: stackTexture(m.era) }), false));
+  const glove = new THREE.BoxGeometry(0.004, 0.09, 0.34); glove.translate(faceX, beltY - 0.12, -drvZ);
+  intr.add(mesh(glove, mats.interiorDark, false));
+  for (const pz of [-0.09, 0.02, 0.12]) {
+    const ped = new THREE.BoxGeometry(0.02, 0.09, 0.06); ped.rotateZ(-0.5); ped.translate(w0 - 0.2, floorY + 0.12, drvZ + pz);
+    intr.add(mesh(ped, mats.chrome, false));
   }
 
   const seatX = w0 - 1.08;
@@ -463,7 +533,14 @@ export function buildCar(m, tuning, mats = createMaterials()) {
     const backH = Math.min(0.62, cabinF(x - 0.2) - cushY - 0.12);
     const b = new THREE.BoxGeometry(0.12, backH, wdt); b.rotateZ(0.18); b.translate(x - 0.27, cushY + backH / 2, z);
     g.add(mesh(c, mats.interior, false), mesh(b, mats.interior, false));
-    if (wdt < 0.7) { const hr = new THREE.BoxGeometry(0.1, 0.16, wdt * 0.6); hr.translate(x - 0.35, cushY + backH + 0.07, z); g.add(mesh(hr, mats.interior, false)); }
+    if (wdt < 0.7) {
+      const hr = new THREE.BoxGeometry(0.1, 0.16, wdt * 0.6); hr.translate(x - 0.35, cushY + backH + 0.07, z); g.add(mesh(hr, mats.interior, false));
+      for (const sd of [1, -1]) {   // side bolsters
+        const cb = new THREE.BoxGeometry(0.46, 0.17, 0.07); cb.translate(x, cushY + 0.02, z + sd * wdt / 2);
+        const bb = new THREE.BoxGeometry(0.16, backH * 0.8, 0.07); bb.rotateZ(0.18); bb.translate(x - 0.25, cushY + backH * 0.45, z + sd * wdt / 2);
+        g.add(mesh(cb, mats.interiorDark, false), mesh(bb, mats.interiorDark, false));
+      }
+    }
     intr.add(g);
   };
   seat(seatX, drvZ, 0.48);
@@ -472,14 +549,26 @@ export function buildCar(m, tuning, mats = createMaterials()) {
   if (rearX !== undefined) seat(rearX, 0, wIn * 0.9);
   const cons = new THREE.BoxGeometry(0.75, 0.16, 0.2); cons.translate(seatX + 0.3, floorY + 0.1, 0);
   intr.add(mesh(cons, mats.interiorDark, false));
+  const lever = new THREE.CylinderGeometry(0.01, 0.012, 0.16, 8); lever.translate(seatX + 0.42, floorY + 0.26, 0);
+  const knob = new THREE.SphereGeometry(0.028, 16, 12); knob.translate(seatX + 0.42, floorY + 0.35, 0);
+  const boot = new THREE.ConeGeometry(0.05, 0.07, 12); boot.translate(seatX + 0.42, floorY + 0.21, 0);
+  intr.add(mesh(lever, mats.chrome, false), mesh(knob, m.era === 'classic' ? mats.wood : mats.interiorDark, false), mesh(boot, mats.interiorDark, false));
+  const hb = new THREE.BoxGeometry(0.2, 0.03, 0.03); hb.rotateZ(0.25); hb.translate(seatX + 0.1, floorY + 0.22, 0.03);
+  intr.add(mesh(hb, mats.interiorDark, false));
+  if (roofOn) {
+    const mir = new THREE.BoxGeometry(0.02, 0.06, 0.2); mir.translate(m.roofFrom + 0.06, cabinF(m.roofFrom + 0.06) - 0.09, 0);
+    intr.add(mesh(mir, mats.interiorDark, false));
+  }
 
   const sw = new THREE.Group();
   const swSpin = new THREE.Group();   // rotates about the column (local X) when steering
   sw.add(swSpin);
   const ring = new THREE.TorusGeometry(0.18, 0.017, 10, 40); ring.rotateY(Math.PI / 2);
   const hubg = new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16); hubg.rotateZ(Math.PI / 2);
-  const spoke = new THREE.BoxGeometry(0.01, 0.02, 0.34);
-  swSpin.add(mesh(ring, m.era === 'classic' ? mats.wood : mats.interiorDark, false), mesh(hubg, mats.interiorDark, false), mesh(spoke, mats.chrome, false));
+  const spoke = new THREE.BoxGeometry(0.01, 0.022, 0.34);
+  const spokeDown = new THREE.BoxGeometry(0.01, 0.17, 0.022); spokeDown.translate(0, -0.085, 0);
+  const spokeMat = m.era === 'classic' ? mats.chrome : mats.interiorDark;
+  swSpin.add(mesh(ring, m.era === 'classic' ? mats.wood : mats.interiorDark, false), mesh(hubg, mats.interiorDark, false), mesh(spoke, spokeMat, false), mesh(spokeDown, spokeMat, false));
   sw.rotation.z = 0.45;
   sw.position.set(seatX + 0.5, beltY + 0.02, drvZ);
   intr.add(sw);
@@ -632,6 +721,10 @@ export function buildCar(m, tuning, mats = createMaterials()) {
       if (prev.spoiler !== tu.spoiler || prev.kit !== tu.kit) build.parts(tu.spoiler, tu.kit);
     },
     setSteer(a) { swSpin.rotation.x = -a; },
+    setGauges(kmh, rpm) {
+      needles.speedo.rotation.x = DIAL_A0 + DIAL_SWEEP * Math.min(1, Math.abs(kmh) / dialMax.speedo);
+      needles.tacho.rotation.x = DIAL_A0 + DIAL_SWEEP * Math.min(1, rpm / dialMax.tacho);
+    },
     update(dt) {
       const k = 1 - Math.exp(-dt * 5);
       for (const key of ['doors', 'hood', 'trunk']) this.open[key] += (this.target[key] - this.open[key]) * k;

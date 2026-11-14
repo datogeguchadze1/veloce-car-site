@@ -219,6 +219,54 @@ export async function loadGlbCar(m, onProgress) {
     steer = { pivot: g, axis };
   }
 
+  // Gauge needles (speedo / tacho) that are separate parts: each turns about
+  // its hub around the dial's normal. 0 = the position it was modelled in.
+  const gauges = {};
+  for (const key of ['speedo', 'tacho']) {
+    const gc = cfg.gauges && cfg.gauges[key];
+    if (!gc) continue;
+    const nodes = findNodes(model, gc.node);
+    if (!nodes.length) continue;
+    const pts = [], v = new THREE.Vector3();
+    nodes.forEach(n => n.traverse(o => {
+      if (!o.isMesh) return;
+      const pos = o.geometry.attributes.position, step = Math.max(1, Math.floor(pos.count / 500));
+      for (let i = 0; i < pos.count; i += step) pts.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).applyMatrix4(toBody).clone());
+    }));
+    const box = new THREE.Box3().setFromPoints(pts), c = box.getCenter(new THREE.Vector3());
+    const len = box.getSize(new THREE.Vector3()).length();
+    // dial normal: explicit, else the thinnest direction of the needle in the vertical plane
+    let axis;
+    if (gc.axisDeg !== undefined) axis = new THREE.Vector3(Math.cos(gc.axisDeg * Math.PI / 180), Math.sin(gc.axisDeg * Math.PI / 180), 0);
+    else {
+      let best = Infinity, worst = 0;
+      for (let deg = -75; deg <= 75; deg += 1) {
+        const d = new THREE.Vector3(Math.cos(deg * Math.PI / 180), Math.sin(deg * Math.PI / 180), 0);
+        let lo = Infinity, hi = -Infinity;
+        for (const p of pts) { const t = (p.x - c.x) * d.x + (p.y - c.y) * d.y; if (t < lo) lo = t; if (t > hi) hi = t; }
+        if (hi - lo < best) { best = hi - lo; axis = d; }
+        worst = Math.max(worst, hi - lo);
+      }
+      if (worst < len * 0.2) axis = steer ? steer.axis.clone() : new THREE.Vector3(Math.cos(-0.35), Math.sin(-0.35), 0);
+    }
+    // hub: the node's own origin when it sits on the needle, else the end with more geometry
+    let hub = nodes[0].getWorldPosition(new THREE.Vector3()).applyMatrix4(toBody);
+    if (!box.clone().expandByScalar(len * 0.15).containsPoint(hub)) {
+      let p0 = pts[0]; for (const p of pts) if (p.distanceTo(c) > p0.distanceTo(c)) p0 = p;
+      let p1 = pts[0]; for (const p of pts) if (p.distanceTo(p0) > p1.distanceTo(p0)) p1 = p;
+      const nearEnd = e => pts.filter(p => p.distanceTo(e) < len * 0.25);
+      const a = nearEnd(p0), b = nearEnd(p1);
+      let pick = a.length >= b.length ? a : b;
+      if (gc.flipHub) pick = pick === a ? b : a;
+      hub = pick.reduce((s, p) => s.add(p), new THREE.Vector3()).multiplyScalar(1 / pick.length);
+    }
+    const g = new THREE.Group(); g.name = `pivot:${key}`; g.position.copy(hub); body.add(g);
+    nodes.forEach(n => g.attach(n));
+    // zero: angle of the 0 mark relative to the modelled needle position (degrees, clockwise)
+    gauges[key] = { pivot: g, axis, max: gc.max, sweep: (gc.sweep || 240) * Math.PI / 180, zero: (gc.zero || 0) * Math.PI / 180, dir: gc.dir || 1 };
+  }
+  const turnGauge = (gd, value) => { if (gd) gd.pivot.quaternion.setFromAxisAngle(gd.axis, gd.dir * (gd.zero + gd.sweep * Math.min(1, Math.max(0, value / gd.max)))); };
+
   // Wheels stay on the ground when the body is raised or lowered.
   const wheelNodes = findNodes(model, cfg.wheels);
   wheelNodes.forEach(n => root.attach(n));
@@ -252,6 +300,8 @@ export async function loadGlbCar(m, onProgress) {
     credit: cfg.credit || null,
     noInterior: !!cfg.noInterior,
     setSteer(a) { if (steer) steer.pivot.quaternion.setFromAxisAngle(steer.axis, -a); },
+    setGauges(kmh, rpm) { turnGauge(gauges.speedo, Math.abs(kmh)); turnGauge(gauges.tacho, rpm); },
+    hasGauges: Object.keys(gauges).length > 0, gauges,
     applyTuning(tu) {
       this.tuning = { ...tu };
       const origColor = '#' + origPaint.getHexString();
@@ -308,6 +358,7 @@ export async function loadGlbCar(m, onProgress) {
     },
   };
   car.applyTuning(baseTuning);
+  car.setGauges(0, 0);
   console.info(`[glbCar] ${m.id}: ${meshes.length} meshes, ${doors.length} doors, hood ${!!hood}, trunk ${!!trunk}, wheels ${wheelNodes.length}, size ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)} m`);
   return car;
 }

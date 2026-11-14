@@ -157,6 +157,9 @@ body.driving .stage { height: auto; min-height: 0 }
 .dh-drift b { display: block; font-size: clamp(2rem, 6vw, 3.4rem); font-weight: 900; color: #ffd23f; text-shadow: 0 2px 14px #000a }
 .dh-drift small { font-family: 'Noto Sans Georgian', sans-serif; font-size: .9rem; letter-spacing: .15em; color: #fff }
 .dh-lap small { display: block }
+#dhMode { font-family: Orbitron, sans-serif; font-weight: 900; min-width: 40px }
+.drive-hud.manual #dhMode { background: #ffb03a; color: #111; border-color: #ffb03a }
+.dh-shift { display: none !important }
 .dh-touch { display: none }
 @media (pointer: coarse), (max-width: 860px) {
   .dh-help { display: none }
@@ -166,6 +169,8 @@ body.driving .stage { height: auto; min-height: 0 }
   .dh-touch div { display: flex; gap: 8px }
   .dh-touch button { width: 60px; height: 60px; border-radius: 50%; background: #0008; border: 2px solid #ffffff50; color: #fff; font-size: 1.5rem; touch-action: none; user-select: none; -webkit-user-select: none }
   .dh-touch button.on { background: #4fb3ffaa; border-color: #fff }
+  .drive-hud.manual .dh-shift { display: flex !important; flex-direction: column; gap: 6px; position: absolute; right: 0; bottom: 74px }
+  .dh-shift button { width: 54px !important; height: 44px !important; border-radius: 12px !important; background: #ffb03acc !important; color: #111 !important; font-weight: 900 }
   .dh-touch [data-k="gas"] { background: #1e7a3caa }
   .dh-touch [data-k="brake"] { background: #8a1f2aaa }
   .dh-touch [data-k="hand"] { background: #7a5a12aa; font-size: 1.2rem }

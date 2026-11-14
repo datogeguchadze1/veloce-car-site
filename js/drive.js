@@ -288,6 +288,7 @@ function buildHud(stage) {
     <div class="dh-top">
       <div class="dh-lap"><small>წრე</small><b id="dhLap">0:00.00</b><small>საუკეთესო <span id="dhBest">—</span></small><small>დრიფტის ქულა <span id="dhScore">0</span> · რეკორდი <span id="dhDriftBest">0</span></small></div>
       <div class="dh-btns">
+        <button id="dhMode" title="გადაცემათა კოლოფი: ავტომატი / მექანიკა (M)">A</button>
         <button id="dhCam" title="კამერა (C)">🎥</button>
         <button id="dhSound" title="ხმა">🔊</button>
         <button id="dhReset" title="ტრასაზე დაბრუნება (R)">↺</button>
@@ -299,9 +300,10 @@ function buildHud(stage) {
       <div class="dh-rpm"><i id="dhRpm"></i></div>
       <span class="dh-gear" id="dhGear">1</span><b id="dhSpd">0</b><small>კმ/სთ</small><i id="dhOff">ბალახი</i>
     </div>
-    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · C კამერა · R ტრასაზე · Esc გასვლა</p>
+    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · R ტრასაზე · Esc გასვლა</p>
     <div class="dh-touch">
       <div><button data-k="left">◀</button><button data-k="right">▶</button></div>
+      <div class="dh-shift"><button data-shift="1">＋</button><button data-shift="-1">－</button></div>
       <div><button data-k="hand">✋</button><button data-k="brake">⏸</button><button data-k="gas">▲</button></div>
     </div>`;
   stage.appendChild(el);
@@ -312,7 +314,7 @@ function buildHud(stage) {
 export function createDrive({ scene, camera, controls, keyLight, hide, stage, onExit }) {
   let track = null, hud = null, car = null, engine = null;
   const keys = { gas: 0, brake: 0, left: 0, right: 0, hand: 0 };
-  const st = { vl: 0, yaw: 0, shake: 0, drift: 0, driftIdle: 0, score: 0, driftBest: 0, smokeT: 0, gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0, spin: 0 };
+  const st = { manual: false, vl: 0, yaw: 0, shake: 0, drift: 0, driftIdle: 0, score: 0, driftBest: 0, smokeT: 0, gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0, spin: 0 };
   let perf, wheelbase, redline, spec;
   const IDLE = 850;
   const RATIOS = [0.25, 0.41, 0.57, 0.72, 0.86, 1.0];   // share of top speed reached at the redline, per gear
@@ -325,6 +327,9 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (!down) return;
     if (e.code === 'Escape') stop();
     else if (e.code === 'KeyC') toggleCam();
+    else if (e.code === 'KeyM') setManual(!st.manual);
+    else if (e.code === 'KeyE') shift(1);
+    else if (e.code === 'KeyQ') shift(-1);
     else if (e.code === 'KeyR') placeAtStart(nearestIdx());
   };
   addEventListener('keydown', onKey(true));
@@ -336,10 +341,29 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (!hud) return;
     const el = hud.querySelector('#dhDrift');
     hud.querySelector('#dhDriftPts').textContent = text;
-    hud.querySelector('#dhDriftLbl').textContent = text.startsWith('+') ? 'ქულა' : 'დაჯახება';
+    hud.querySelector('#dhDriftLbl').textContent = text.startsWith('+') ? 'ქულა' : text === 'ბრუნები!' ? 'ძალიან მაღალია' : 'დაჯახება';
     el.classList.add('on'); el.dataset.flash = '1';
     clearTimeout(flashT);
     flashT = setTimeout(() => { if (hud) { delete el.dataset.flash; el.classList.remove('on'); } }, 1300);
+  }
+
+  function setManual(on) {
+    st.manual = on;
+    try { localStorage.setItem('veloce-manual', on ? '1' : '0'); } catch { /* private mode */ }
+    if (!on && st.gear < 1) st.gear = 1;
+    if (hud) { hud.querySelector('#dhMode').textContent = on ? 'M' : 'A'; hud.classList.toggle('manual', on); }
+  }
+  // manual shifts: R ← 1 … 6. Down-shifts that would over-rev the engine are refused.
+  function shift(dir) {
+    if (!st.manual || !st.active) return;
+    const vmax = perf.vmax / 3.6, speed = Math.abs(st.v);
+    if (dir > 0) {
+      if (st.gear === -1) { if (speed < 2) st.gear = 1; }
+      else if (st.gear < RATIOS.length) { st.gear++; st.shift = 0.15; }
+    } else if (st.gear > 1) {
+      if (speed / (RATIOS[st.gear - 2] * vmax) > 1.1) { flash('ბრუნები!'); return; }
+      st.gear--; st.shift = 0.1;
+    } else if (st.gear === 1 && speed < 2) st.gear = -1;
   }
 
   function toggleCam() { st.cam = st.cam === 'chase' ? 'cockpit' : 'chase'; }
@@ -387,6 +411,11 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     hud = buildHud(stage);
     hud.querySelector('#dhExit').onclick = () => stop();
     hud.querySelector('#dhCam').onclick = toggleCam;
+    hud.querySelector('#dhMode').onclick = () => setManual(!st.manual);
+    hud.querySelectorAll('[data-shift]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); shift(+b.dataset.shift); }));
+    let saved = '0';
+    try { saved = localStorage.getItem('veloce-manual') || '0'; } catch { /* private mode */ }
+    setManual(saved === '1');
     hud.querySelector('#dhReset').onclick = () => placeAtStart(nearestIdx());
     // sound starts on: we are inside the click that opened drive mode, so audio may play
     st.sound = true;
@@ -397,7 +426,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       if (engine && engine.ctx.state === 'suspended') engine.ctx.resume();
       e.currentTarget.textContent = st.sound ? '🔊' : '🔇';
     };
-    hud.querySelectorAll('.dh-touch button').forEach(b => {
+    hud.querySelectorAll('.dh-touch button[data-k]').forEach(b => {
       const k = b.dataset.k;
       const on = e => { e.preventDefault(); keys[k] = 1; b.classList.add('on'); };
       const off = () => { keys[k] = 0; b.classList.remove('on'); };
@@ -440,6 +469,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       car.root.position.set(0, 0, 0); car.root.rotation.set(0, 0, 0);
       car.body.rotation.set(0, 0, 0);
       if (car.setSteer) car.setSteer(0);
+      if (car.setGauges) car.setGauges(0, 0);
     (car.wheels || []).forEach(w => { w.obj.rotation.set(0, w.baseY, 0); });
     }
     onExit && onExit();
@@ -457,10 +487,25 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
 
     // ---- longitudinal (st.v = speed along the car, st.vl = sideways) ----
     const throttle = keys.gas, brake = keys.brake;
-    if (throttle && st.v >= -0.5) st.v += a0 * Math.max(0, 1 - st.v / vmax) * dt;
-    if (brake) {
-      if (st.v > 0.5) st.v -= 11 * dt;
-      else st.v = Math.max(st.v - 4 * dt, -8);            // reverse
+    if (!st.manual) {
+      if (throttle && st.v >= -0.5) st.v += a0 * Math.max(0, 1 - st.v / vmax) * dt;
+      if (brake) {
+        if (st.v > 0.5) st.v -= 11 * dt;
+        else st.v = Math.max(st.v - 4 * dt, -8);            // reverse
+      }
+    } else {
+      // manual: the chosen gear decides how hard the engine can pull
+      const g = st.gear;
+      if (g === -1) { if (throttle) st.v = Math.max(st.v - 4 * dt, -8); }
+      else {
+        const top = RATIOS[g - 1] * vmax, r = Math.abs(st.v) / top;   // r = share of the redline
+        if (throttle && st.shift <= 0 && r < 1 && st.v > -0.5) {
+          const lug = g === 1 ? 1 : Math.min(1, 0.25 + r * 2.2);        // too high a gear bogs down
+          st.v += a0 * (1.22 - 0.06 * g) * lug * Math.max(0, 1 - st.v / vmax) * dt;
+        }
+        if (st.v > top) st.v -= Math.min(st.v - top, 7 * dt);          // rev limiter / engine braking
+      }
+      if (brake) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), 11 * dt);
     }
     if (keys.hand) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), 4 * dt);
     if (!throttle && !brake) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), (1.2 + 0.0012 * st.v * st.v) * dt);
@@ -619,7 +664,16 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     // gearbox (sound + HUD only): automatic shifts at the redline
     const speed = Math.abs(st.v);
     let target, gearLabel;
-    if (st.v < -0.3) {
+    if (st.manual) {
+      if (st.shift > 0) st.shift -= dt;
+      if (st.gear === -1) { gearLabel = 'R'; target = IDLE + speed / (vmax * 0.18) * (redline - IDLE); }
+      else {
+        gearLabel = String(st.gear);
+        target = Math.max(IDLE, speed / (RATIOS[st.gear - 1] * vmax) * redline);
+        if (st.gear === 1 && speed < 3 && throttle) target = Math.max(target, IDLE + 2400);
+        if (target >= redline * 0.99 && throttle) target = redline * (0.965 + 0.035 * Math.sin(st.time * 45));   // bouncing off the limiter
+      }
+    } else if (st.v < -0.3) {
       gearLabel = 'R';
       target = IDLE + speed / (vmax * 0.18) * (redline - IDLE);
     } else {
@@ -639,6 +693,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     const bar = hud.querySelector('#dhRpm');
     bar.style.width = `${Math.min(100, st.rpm / redline * 100)}%`;
     bar.classList.toggle('red', st.rpm > redline * 0.9);
+    if (car.setGauges) car.setGauges(kmh, st.rpm);
     if (engine) engine.set(st.rpm, load, st.sound);
   }
 
