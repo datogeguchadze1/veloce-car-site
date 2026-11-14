@@ -5,6 +5,7 @@ import { MODELS, ERAS } from './models.js';
 import {
   buildCar, defaultTuning, FINISHES, RIMS, RIM_COLORS, SPOILERS, TINTS, LIGHTS, INTERIORS, KITS,
 } from './carBuilder.js';
+import { loadGlbCar } from './glbCar.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -84,10 +85,21 @@ const blob = addFloor(scene);
 /* ---------- state ---------- */
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORE)) || {}; } catch { saved = {}; }
-const tuningFor = m => ({ ...defaultTuning(m), ...(saved[m.id] || {}) });
 const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch { /* private mode */ } };
 
 const state = { model: null, car: null, inside: false, era: 'all' };
+
+// Real model if the catalog entry has one and it loads; otherwise the stylised fallback.
+async function makeCar(m) {
+  let car = null;
+  if (m.glb) {
+    try { car = await loadGlbCar(m); }
+    catch (err) { console.warn(`[garage] ${m.id}: .glb failed, using the stylised model`, err); }
+  }
+  if (!car) car = buildCar(m, defaultTuning(m));
+  car.applyTuning({ ...(car.baseTuning || defaultTuning(m)), ...(saved[m.id] || {}) });
+  return car;
+}
 const thumbs = {};
 
 /* ---------- camera framing ---------- */
@@ -125,17 +137,27 @@ function setInside(on) {
 }
 
 /* ---------- model switching ---------- */
-function selectModel(id, { push = true } = {}) {
+let selectToken = 0;
+async function selectModel(id, { push = true } = {}) {
   const m = MODELS.find(x => x.id === id) || MODELS[0];
+  const token = ++selectToken;
+  const ld = $('#loading');
+  ld.textContent = 'იტვირთება…';
+  ld.classList.remove('off');
+  const car = await makeCar(m);
+  if (token !== selectToken) { car.dispose(); return; }   // user clicked another model meanwhile
   if (state.car) { scene.remove(state.car.root); state.car.dispose(); }
   state.model = m;
-  state.car = buildCar(m, tuningFor(m));
-  scene.add(state.car.root);
+  state.car = car;
+  scene.add(car.root);
   blob.scale.set(m.dims.L * 1.25, m.dims.W * 1.5, 1);
   state.inside = false;
+  updateFov();
   $$('#controls [aria-pressed]').forEach(b => { if (b.dataset.act !== 'spin') b.setAttribute('aria-pressed', false); });
-  $('[data-act="trunk"]').hidden = !state.car.trunk;
-  frameCar(state.car);
+  $('[data-act="doors"]').hidden = !car.doors.length;
+  $('[data-act="hood"]').hidden = !car.hood;
+  $('[data-act="trunk"]').hidden = !car.trunk;
+  frameCar(car);
 
   $('#ovYear').textContent = m.years;
   $('#ovName').textContent = m.name;
@@ -143,6 +165,7 @@ function selectModel(id, { push = true } = {}) {
   $$('#list li').forEach(li => li.classList.toggle('on', li.dataset.id === m.id));
   renderInfo(m);
   renderTuning(m);
+  ld.classList.add('off');
   if (push) history.replaceState(null, '', `#${m.id}`);
 }
 
@@ -165,13 +188,20 @@ function renderList() {
 
 /* ---------- info panel ---------- */
 const SPEC_LABELS = { engine: 'ძრავი', power: 'სიმძლავრე', accel: '0–100 კმ/სთ', top: 'მაქს. სიჩქარე', weight: 'წონა', built: 'გამოშვებული' };
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function modelNote(m) {
+  const cr = state.car && state.car.source === 'glb' ? state.car.credit : null;
+  if (!cr) return 'მონაცემები მიახლოებითია. 3D მოდელი სტილიზებულია და ზუსტ ასლს არ წარმოადგენს.';
+  const title = cr.url ? `<a href="${esc(cr.url)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(cr.title)}</a>` : esc(cr.title);
+  return `მონაცემები მიახლოებითია. 3D მოდელი: ${title}, ავტორი ${esc(cr.author)} (${esc(cr.license)}).`;
+}
 function renderInfo(m) {
   $('#tab-info').innerHTML = `
     <h2>Mercedes-Benz ${m.name}</h2>
     <span class="badge">${m.chassis}</span><span class="badge">${m.years}</span><span class="badge">${m.body}</span>
     <p class="desc">${m.desc}</p>
     <dl class="specs">${Object.entries(SPEC_LABELS).map(([k, l]) => `<div><dt>${l}</dt><dd>${m.specs[k]}</dd></div>`).join('')}</dl>
-    <p class="note">მონაცემები მიახლოებითია. 3D მოდელი სტილიზებულია და ზუსტ ასლს არ წარმოადგენს.</p>`;
+    <p class="note">${modelNote(m)}</p>`;
 }
 
 /* ---------- tuning panel ---------- */
@@ -181,21 +211,25 @@ function seg(key, opts, cur) {
 }
 function renderTuning(m) {
   const tu = state.car.tuning;
+  const caps = state.car.caps || {};
+  const on = k => caps[k] !== false;
+  const orig = o => (state.car.source === 'glb' ? { orig: 'ორიგინალი', ...o } : o);
+  const opt = (k, label, body) => (on(k) ? `<div class="opt"><div class="lbl">${label}</div>${body}</div>` : '');
   const ride = v => (v > 0 ? `+${v}` : `${v}`) + ' სმ';
   $('#tab-tune').innerHTML = `
-    <div class="opt"><div class="lbl">ფერი <b id="colName">${tu.color}</b></div>
+    ${on('color') ? `<div class="opt"><div class="lbl">ფერი <b id="colName">${tu.color}</b></div>
       <div class="sw" id="sw">${m.palette.map(c => `<button style="--c:${c}" data-c="${c}" class="${c === tu.color ? 'on' : ''}" aria-label="${c}"></button>`).join('')}
-      <input type="color" id="custom" value="${tu.color}" aria-label="საკუთარი ფერი"></div></div>
-    <div class="opt"><div class="lbl">საფარი</div>${seg('finish', FINISHES, tu.finish)}</div>
-    <div class="opt"><div class="lbl">დისკები</div>${seg('rims', RIMS, tu.rims)}</div>
-    <div class="opt"><div class="lbl">დისკის ფერი</div>${seg('rimColor', RIM_COLORS, tu.rimColor)}</div>
-    <div class="opt"><label for="ride">სუსპენზია <b id="rideV">${ride(tu.ride)}</b></label>
-      <input type="range" id="ride" min="-5" max="6" step="1" value="${tu.ride}"></div>
-    <div class="opt"><div class="lbl">სპოილერი</div>${seg('spoiler', SPOILERS, tu.spoiler)}</div>
-    <div class="opt"><div class="lbl">ბოდი-კიტი</div>${seg('kit', KITS, tu.kit)}</div>
-    <div class="opt"><div class="lbl">მინის ტონირება</div>${seg('tint', TINTS, tu.tint)}</div>
-    <div class="opt"><div class="lbl">ფარების ფერი</div>${seg('lights', LIGHTS, tu.lights)}</div>
-    <div class="opt"><div class="lbl">სალონის ფერი</div>${seg('interior', INTERIORS, tu.interior)}</div>
+      <input type="color" id="custom" value="${tu.color}" aria-label="საკუთარი ფერი"></div></div>` : ''}
+    ${opt('finish', 'საფარი', seg('finish', orig(FINISHES), tu.finish))}
+    ${opt('rims', 'დისკები', seg('rims', RIMS, tu.rims))}
+    ${opt('rimColor', 'დისკის ფერი', seg('rimColor', orig(RIM_COLORS), tu.rimColor))}
+    ${on('ride') ? `<div class="opt"><label for="ride">სუსპენზია <b id="rideV">${ride(tu.ride)}</b></label>
+      <input type="range" id="ride" min="-5" max="6" step="1" value="${tu.ride}"></div>` : ''}
+    ${opt('spoiler', 'სპოილერი', seg('spoiler', SPOILERS, tu.spoiler))}
+    ${opt('kit', 'ბოდი-კიტი', seg('kit', KITS, tu.kit))}
+    ${opt('tint', 'მინის ტონირება', seg('tint', orig(TINTS), tu.tint))}
+    ${opt('lights', 'ფარების ფერი', seg('lights', orig(LIGHTS), tu.lights))}
+    ${opt('interior', 'სალონის ფერი', seg('interior', orig(INTERIORS), tu.interior))}
     <button class="reset" id="reset">↺ ქარხნული პარამეტრები</button>`;
 
   const set = patch => {
@@ -208,7 +242,7 @@ function renderTuning(m) {
     $$('#sw button').forEach(x => x.classList.toggle('on', x === b));
     $('#custom').value = b.dataset.c; $('#colName').textContent = b.dataset.c;
   });
-  $('#custom').oninput = e => {
+  if ($('#custom')) $('#custom').oninput = e => {
     set({ color: e.target.value });
     $$('#sw button').forEach(x => x.classList.remove('on'));
     $('#colName').textContent = e.target.value;
@@ -217,10 +251,10 @@ function renderTuning(m) {
     set({ [g.dataset.key]: b.dataset.v });
     $$('button', g).forEach(x => x.classList.toggle('on', x === b));
   }));
-  $('#ride').oninput = e => { set({ ride: +e.target.value }); $('#rideV').textContent = ride(+e.target.value); };
+  if ($('#ride')) $('#ride').oninput = e => { set({ ride: +e.target.value }); $('#rideV').textContent = ride(+e.target.value); };
   $('#reset').onclick = () => {
     delete saved[m.id]; persist();
-    state.car.applyTuning(defaultTuning(m));
+    state.car.applyTuning(state.car.baseTuning || defaultTuning(m));
     renderTuning(m);
   };
 }
@@ -265,7 +299,7 @@ async function makeThumbs() {
   const cam = new THREE.PerspectiveCamera(30, 2, 0.1, 50);
   for (const m of MODELS) {
     await new Promise(res => setTimeout(res, 30));
-    const car = buildCar(m, tuningFor(m));
+    const car = await makeCar(m);
     sc.add(car.root);
     b.scale.set(m.dims.L * 1.25, m.dims.W * 1.5, 1);
     const L = m.dims.L, H = car.size.y;
@@ -309,8 +343,7 @@ renderEras();
 renderList();
 selectModel(location.hash.slice(1) || MODELS[0].id, { push: false });
 resize();
-$('#loading').classList.add('off');
-addEventListener('hashchange', () => { const id = location.hash.slice(1); if (id && id !== state.model.id) selectModel(id, { push: false }); });
+addEventListener('hashchange', () => { const id = location.hash.slice(1); if (id && (!state.model || id !== state.model.id)) selectModel(id, { push: false }); });
 setTimeout(makeThumbs, 300);
 
-window.__garage = { state, camera, controls, selectModel, setInside, renderer, scene };
+window.__garage = { state, camera, controls, selectModel, setInside, renderer, scene, MODELS };
