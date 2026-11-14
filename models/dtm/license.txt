@@ -1,0 +1,11 @@
+Model Information:
+* title:	2018 Mercedes C-Coupé DTM
+* source:	https://sketchfab.com/3d-models/2018-mercedes-c-coupe-dtm-5708f2acc5ef40839b6eb50970e1c173
+* author:	Dave Love SketchFab (https://sketchfab.com/Tyler_Dave)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "2018 Mercedes C-Coupé DTM" (https://sketchfab.com/3d-models/2018-mercedes-c-coupe-dtm-5708f2acc5ef40839b6eb50970e1c173) by Dave Love SketchFab (https://sketchfab.com/Tyler_Dave) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

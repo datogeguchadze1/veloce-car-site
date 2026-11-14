@@ -170,6 +170,7 @@ async function selectModel(id, { push = true } = {}) {
   $('[data-act="doors"]').hidden = !car.doors.length;
   $('[data-act="hood"]').hidden = !car.hood;
   $('[data-act="trunk"]').hidden = !car.trunk;
+  $('[data-act="inside"]').hidden = !!car.noInterior;
   frameCar(car);
 
   $('#ovYear').textContent = m.years;
