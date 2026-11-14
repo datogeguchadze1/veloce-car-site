@@ -1,5 +1,5 @@
-// Loads a real car model (.glb) and wraps it with the same interface that
-// carBuilder.js's buildCar() returns, so main.js treats both the same way:
+// Loads a real car model (.gltf / .glb) and wraps it in the interface main.js
+// and drive.js use:
 //   root, body, doors, hood, trunk, driverEye, size, target, open,
 //   tuning, baseTuning, caps, applyTuning(), update(dt), dispose()
 //
@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { FINISHES, TINTS, LIGHTS, INTERIORS, RIM_COLORS, defaultTuning } from './carBuilder.js';
+import { FINISHES, TINTS, LIGHTS, INTERIORS, RIM_COLORS, defaultTuning } from './tuning.js';
 
 let draco;
 // A fresh loader per model so its LoadingManager can report progress
@@ -279,8 +279,7 @@ export async function loadGlbCar(m, onProgress) {
   /* ---------- tuning ---------- */
   const caps = {
     color: paint.length > 0, finish: paint.length > 0,
-    rims: false, rimColor: rimMats.length > 0,
-    ride: true, spoiler: false, kit: false,
+    rimColor: rimMats.length > 0, ride: true,
     tint: glass.length > 0, lights: lightMats.length > 0, interior: interiorMats.length > 0,
   };
   const origPaint = paint[0] ? orig.get(paint[0]).color.clone() : new THREE.Color(m.palette[0]);
@@ -288,7 +287,6 @@ export async function loadGlbCar(m, onProgress) {
     ...defaultTuning(m),
     color: '#' + origPaint.getHexString(),
     finish: 'orig', rimColor: 'orig', tint: 'orig', lights: 'orig', interior: 'orig',
-    rims: 'orig', spoiler: 'none', kit: 'none',
     ...(cfg.defaults || {}),   // per-model starting tuning, e.g. clear glass
   };
 
