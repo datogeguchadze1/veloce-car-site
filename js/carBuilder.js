@@ -552,15 +552,18 @@ export function buildCar(m, tuning, mats = createMaterials()) {
   for (const wx of m.wheel.x) for (const s of [1, -1]) wheels.push({ x: wx, s });
   const wheelGroup = new THREE.Group();
   root.add(wheelGroup);
+  const wheelObjs = [];   // for spinning / steering in test-drive mode
 
   const build = {
     rims: style => {
       wheelGroup.clear();
+      wheelObjs.length = 0;
       for (const { x, s } of wheels) {
         const w = buildWheel(m, style, mats);
         w.position.set(x, r, s * wheelZ);
         if (s < 0) w.rotation.y = Math.PI;
         wheelGroup.add(w);
+        wheelObjs.push({ obj: w, s, front: x === m.wheel.x[0], baseY: w.rotation.y });
       }
     },
     parts: (spoiler, kit) => {
@@ -604,7 +607,7 @@ export function buildCar(m, tuning, mats = createMaterials()) {
   };
 
   const car = {
-    root, body, doors, hood, trunk, mats, model: m, driverEye,
+    root, body, doors, hood, trunk, mats, model: m, driverEye, wheels: wheelObjs,
     size: new THREE.Vector3(L, roofH, W),
     open: { doors: 0, hood: 0, trunk: 0 },
     target: { doors: 0, hood: 0, trunk: 0 },

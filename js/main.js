@@ -6,6 +6,7 @@ import {
   buildCar, defaultTuning, FINISHES, RIMS, RIM_COLORS, SPOILERS, TINTS, LIGHTS, INTERIORS, KITS,
 } from './carBuilder.js';
 import { loadGlbCar } from './glbCar.js';
+import { createDrive } from './drive.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -45,8 +46,9 @@ function addLights(sc) {
   const rim = new THREE.DirectionalLight(0x9fc8ff, 1.0);
   rim.position.set(-6, 3, -4);
   sc.add(rim);
+  return key;
 }
-addLights(scene);
+const keyLight = addLights(scene);
 
 function radialTexture(stops) {
   const c = document.createElement('canvas');
@@ -78,6 +80,7 @@ function addFloor(sc) {
   }));
   blob.rotation.x = -Math.PI / 2; blob.position.y = 0.003;
   sc.add(blob);
+  blob.userData.showroom = [floor, ring, blob];
   return blob;
 }
 const blob = addFloor(scene);
@@ -141,6 +144,7 @@ let selectToken = 0;
 async function selectModel(id, { push = true } = {}) {
   const m = MODELS.find(x => x.id === id) || MODELS[0];
   const token = ++selectToken;
+  if (drive.active) drive.stop();
   const ld = $('#loading');
   ld.textContent = 'იტვირთება…';
   ld.classList.remove('off');
@@ -272,6 +276,13 @@ $$('#controls button').forEach(b => b.onclick = () => {
   else if (act === 'inside') setInside(!state.inside);
   else if (act === 'spin') { if (state.inside) setInside(false); controls.autoRotate = toggle(); }
   else if (act === 'shot') screenshot();
+  else if (act === 'drive') {
+    if (state.inside) setInside(false);
+    controls.autoRotate = false;
+    car.target.doors = car.target.hood = car.target.trunk = 0;
+    $$('#controls [aria-pressed]').forEach(x => x.setAttribute('aria-pressed', false));
+    drive.start(car, state.model);
+  }
 });
 
 function screenshot() {
@@ -317,7 +328,8 @@ async function makeThumbs() {
 /* ---------- loop ---------- */
 function updateFov() {
   const portrait = camera.aspect < 1;
-  camera.fov = state.inside ? (portrait ? 90 : 70) : (portrait ? 48 : 35);
+  const driving = document.body.classList.contains('driving');
+  camera.fov = driving ? (portrait ? 75 : 62) : state.inside ? (portrait ? 90 : 70) : (portrait ? 48 : 35);
   camera.updateProjectionMatrix();
 }
 function resize() {
@@ -329,12 +341,18 @@ function resize() {
 }
 new ResizeObserver(resize).observe(stage);
 
+const drive = createDrive({
+  scene, camera, controls, keyLight, stage,
+  hide: blob.userData.showroom,
+  onExit: () => { updateFov(); frameCar(state.car); },
+});
 const timer = new THREE.Timer();
 renderer.setAnimationLoop(t => {
   timer.update(t);
   const dt = Math.min(timer.getDelta(), 0.05);
   if (state.car) state.car.update(dt);
-  controls.update();
+  if (drive.active) drive.update(dt);
+  else controls.update();
   renderer.render(scene, camera);
 });
 
@@ -346,4 +364,4 @@ resize();
 addEventListener('hashchange', () => { const id = location.hash.slice(1); if (id && (!state.model || id !== state.model.id)) selectModel(id, { push: false }); });
 setTimeout(makeThumbs, 300);
 
-window.__garage = { state, camera, controls, selectModel, setInside, renderer, scene, MODELS };
+window.__garage = { state, camera, controls, selectModel, setInside, renderer, scene, MODELS, drive };
