@@ -90,7 +90,7 @@ let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORE)) || {}; } catch { saved = {}; }
 const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch { /* private mode */ } };
 
-const state = { model: null, car: null, inside: false, era: 'all' };
+const state = { model: null, car: null, inside: false, era: 'all', brand: 'all' };
 
 // Real model if the catalog entry has one and it loads; otherwise the stylised fallback.
 async function makeCar(m) {
@@ -99,7 +99,10 @@ async function makeCar(m) {
     try { car = await loadGlbCar(m); }
     catch (err) { console.warn(`[garage] ${m.id}: .glb failed, using the stylised model`, err); }
   }
-  if (!car) car = buildCar(m, defaultTuning(m));
+  if (!car) {
+    if (!m.top) throw new Error(`${m.id}: model file could not be loaded`);
+    car = buildCar(m, defaultTuning(m));
+  }
   car.applyTuning({ ...(car.baseTuning || defaultTuning(m)), ...(saved[m.id] || {}) });
   return car;
 }
@@ -148,7 +151,13 @@ async function selectModel(id, { push = true } = {}) {
   const ld = $('#loading');
   ld.textContent = 'იტვირთება…';
   ld.classList.remove('off');
-  const car = await makeCar(m);
+  let car;
+  try { car = await makeCar(m); }
+  catch (err) {
+    console.warn(err);
+    if (token === selectToken) ld.textContent = 'მოდელი ვერ ჩაიტვირთა. სცადე მოგვიანებით.';
+    return;
+  }
   if (token !== selectToken) { car.dispose(); return; }   // user clicked another model meanwhile
   if (state.car) { scene.remove(state.car.root); state.car.dispose(); }
   state.model = m;
@@ -174,17 +183,26 @@ async function selectModel(id, { push = true } = {}) {
 }
 
 /* ---------- catalog ---------- */
+function renderBrands() {
+  const brands = [...new Set(MODELS.map(m => m.brand))];
+  const el = $('#brands');
+  el.hidden = brands.length < 2;
+  el.innerHTML = [['all', 'ყველა მარკა'], ...brands.map(b => [b, b])]
+    .map(([id, label]) => `<button role="tab" data-brand="${id}" class="${id === state.brand ? 'on' : ''}">${label}</button>`).join('');
+  $$('#brands button').forEach(b => b.onclick = () => { state.brand = b.dataset.brand; renderBrands(); renderList(); });
+}
 function renderEras() {
   $('#eras').innerHTML = ERAS.map(e => `<button role="tab" data-era="${e.id}" class="${e.id === state.era ? 'on' : ''}">${e.label}</button>`).join('');
   $$('#eras button').forEach(b => b.onclick = () => { state.era = b.dataset.era; renderEras(); renderList(); });
 }
 function renderList() {
-  const list = MODELS.filter(m => state.era === 'all' || m.era === state.era).sort((a, b) => a.year - b.year);
+  const list = MODELS.filter(m => (state.era === 'all' || m.era === state.era) && (state.brand === 'all' || m.brand === state.brand))
+    .sort((a, b) => a.year - b.year);
   $('#list').innerHTML = list.map(m => `
     <li data-id="${m.id}" class="${state.model && state.model.id === m.id ? 'on' : ''}">
       <button class="card" aria-label="${m.name} ${m.year}">
         <img alt="" src="${thumbs[m.id] || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">
-        <span class="meta"><span class="yr">${m.year}</span><br><span class="nm">${m.name}</span><br><span class="ch">${m.chassis} · ${m.body}</span></span>
+        <span class="meta"><span class="yr">${m.year} · ${m.brand}</span><br><span class="nm">${m.name}</span><br><span class="ch">${m.chassis} · ${m.body}</span></span>
       </button>
     </li>`).join('');
   $$('#list li').forEach(li => li.querySelector('button').onclick = () => selectModel(li.dataset.id));
@@ -201,7 +219,7 @@ function modelNote(m) {
 }
 function renderInfo(m) {
   $('#tab-info').innerHTML = `
-    <h2>Mercedes-Benz ${m.name}</h2>
+    <h2>${m.brand} ${m.name}</h2>
     <span class="badge">${m.chassis}</span><span class="badge">${m.years}</span><span class="badge">${m.body}</span>
     <p class="desc">${m.desc}</p>
     <dl class="specs">${Object.entries(SPEC_LABELS).map(([k, l]) => `<div><dt>${l}</dt><dd>${m.specs[k]}</dd></div>`).join('')}</dl>
@@ -310,7 +328,8 @@ async function makeThumbs() {
   const cam = new THREE.PerspectiveCamera(30, 2, 0.1, 50);
   for (const m of MODELS) {
     await new Promise(res => setTimeout(res, 30));
-    const car = await makeCar(m);
+    let car;
+    try { car = await makeCar(m); } catch { continue; }
     sc.add(car.root);
     b.scale.set(m.dims.L * 1.25, m.dims.W * 1.5, 1);
     const L = m.dims.L, H = car.size.y;
@@ -357,6 +376,7 @@ renderer.setAnimationLoop(t => {
 });
 
 /* ---------- boot ---------- */
+renderBrands();
 renderEras();
 renderList();
 selectModel(location.hash.slice(1) || MODELS[0].id, { push: false });
