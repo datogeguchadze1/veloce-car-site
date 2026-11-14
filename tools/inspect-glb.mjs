@@ -5,12 +5,17 @@
 import { readFileSync, statSync } from 'node:fs';
 
 const file = process.argv[2];
-if (!file) { console.error('Usage: node tools/inspect-glb.mjs <file.glb>'); process.exit(1); }
+if (!file) { console.error('Usage: node tools/inspect-glb.mjs <file.glb|file.gltf>'); process.exit(1); }
 
 const buf = readFileSync(file);
-if (buf.readUInt32LE(0) !== 0x46546c67) { console.error('Not a binary glTF (.glb) file.'); process.exit(1); }
-const jsonLen = buf.readUInt32LE(12);
-const gltf = JSON.parse(buf.subarray(20, 20 + jsonLen).toString('utf8'));
+let gltf;
+if (/\.gltf$/i.test(file)) {
+  gltf = JSON.parse(buf.toString('utf8'));                     // plain .gltf (JSON + .bin + textures)
+} else {
+  if (buf.readUInt32LE(0) !== 0x46546c67) { console.error('Not a .glb / .gltf file.'); process.exit(1); }
+  const jsonLen = buf.readUInt32LE(12);
+  gltf = JSON.parse(buf.subarray(20, 20 + jsonLen).toString('utf8'));
+}
 
 const nodes = gltf.nodes || [];
 const meshes = gltf.meshes || [];

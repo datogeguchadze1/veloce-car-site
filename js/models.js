@@ -33,6 +33,16 @@ export const MODELS = [
     finish: 'metallic',
     dims: { L: 4.52, W: 1.79, clr: 0.17 },
     wheel: { r: 0.355, w: 0.19, rim: 0.56, x: [1.31, -1.09], style: 'classic' },
+    glb: {
+      file: 'models/300sl/scene.gltf',
+      rotY: Math.PI / 2,
+      paint: ['main_color'],
+      eye: [-0.2, 0.98, -0.36],
+      credit: {
+        title: 'Mercedes-Benz 300 SL Gullwing', author: 'Lexyc16', license: 'CC BY 4.0',
+        url: 'https://sketchfab.com/3d-models/mercedes-benz-300-sl-gullwing-505241c829c540a4921533000736904e',
+      },
+    },
     noseLift: 0.12, tailLift: 0.1,
     top: [[2.26, 0.42], [2.22, 0.55], [2.12, 0.64], [1.85, 0.72], [1.4, 0.78], [0.9, 0.81], [0.5, 0.84],
       [-0.2, 0.86], [-0.9, 0.86], [-1.35, 0.83], [-1.75, 0.76], [-2.05, 0.66], [-2.2, 0.55], [-2.26, 0.42]],
