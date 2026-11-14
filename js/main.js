@@ -2,9 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { MODELS, ERAS } from './models.js';
-import {
-  buildCar, defaultTuning, FINISHES, RIMS, RIM_COLORS, SPOILERS, TINTS, LIGHTS, INTERIORS, KITS,
-} from './carBuilder.js';
+import { FINISHES, RIM_COLORS, TINTS, LIGHTS, INTERIORS } from './tuning.js';
 import { loadGlbCar } from './glbCar.js';
 import { createDrive } from './drive.js';
 
@@ -92,18 +90,10 @@ const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(saved))
 
 const state = { model: null, car: null, inside: false, era: 'all', brand: 'all' };
 
-// Real model if the catalog entry has one and it loads; otherwise the stylised fallback.
+// Loads the car's 3D model and applies the tuning saved for it.
 async function makeCar(m, onProgress) {
-  let car = null;
-  if (m.glb) {
-    try { car = await loadGlbCar(m, onProgress); }
-    catch (err) { console.warn(`[garage] ${m.id}: .glb failed, using the stylised model`, err); }
-  }
-  if (!car) {
-    if (!m.top) throw new Error(`${m.id}: model file could not be loaded`);
-    car = buildCar(m, defaultTuning(m));
-  }
-  car.applyTuning({ ...(car.baseTuning || defaultTuning(m)), ...(saved[m.id] || {}) });
+  const car = await loadGlbCar(m, onProgress);
+  car.applyTuning({ ...car.baseTuning, ...(saved[m.id] || {}) });
   return car;
 }
 const thumbs = {};
@@ -214,8 +204,8 @@ function renderList() {
 const SPEC_LABELS = { engine: 'ძრავი', power: 'სიმძლავრე', accel: '0–100 კმ/სთ', top: 'მაქს. სიჩქარე', weight: 'წონა', built: 'გამოშვებული' };
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function modelNote(m) {
-  const cr = state.car && state.car.source === 'glb' ? state.car.credit : null;
-  if (!cr) return 'მონაცემები მიახლოებითია. 3D მოდელი სტილიზებულია და ზუსტ ასლს არ წარმოადგენს.';
+  const cr = state.car && state.car.credit;
+  if (!cr) return 'მონაცემები მიახლოებითია.';
   const title = cr.url ? `<a href="${esc(cr.url)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(cr.title)}</a>` : esc(cr.title);
   return `მონაცემები მიახლოებითია. 3D მოდელი: ${title}, ავტორი ${esc(cr.author)} (${esc(cr.license)}).`;
 }
@@ -237,7 +227,7 @@ function renderTuning(m) {
   const tu = state.car.tuning;
   const caps = state.car.caps || {};
   const on = k => caps[k] !== false;
-  const orig = o => (state.car.source === 'glb' ? { orig: 'ორიგინალი', ...o } : o);
+  const orig = o => ({ orig: 'ორიგინალი', ...o });
   const opt = (k, label, body) => (on(k) ? `<div class="opt"><div class="lbl">${label}</div>${body}</div>` : '');
   const ride = v => (v > 0 ? `+${v}` : `${v}`) + ' სმ';
   $('#tab-tune').innerHTML = `
@@ -245,12 +235,9 @@ function renderTuning(m) {
       <div class="sw" id="sw">${m.palette.map(c => `<button style="--c:${c}" data-c="${c}" class="${c === tu.color ? 'on' : ''}" aria-label="${c}"></button>`).join('')}
       <input type="color" id="custom" value="${tu.color}" aria-label="საკუთარი ფერი"></div></div>` : ''}
     ${opt('finish', 'საფარი', seg('finish', orig(FINISHES), tu.finish))}
-    ${opt('rims', 'დისკები', seg('rims', RIMS, tu.rims))}
     ${opt('rimColor', 'დისკის ფერი', seg('rimColor', orig(RIM_COLORS), tu.rimColor))}
     ${on('ride') ? `<div class="opt"><label for="ride">სუსპენზია <b id="rideV">${ride(tu.ride)}</b></label>
       <input type="range" id="ride" min="-5" max="6" step="1" value="${tu.ride}"></div>` : ''}
-    ${opt('spoiler', 'სპოილერი', seg('spoiler', SPOILERS, tu.spoiler))}
-    ${opt('kit', 'ბოდი-კიტი', seg('kit', KITS, tu.kit))}
     ${opt('tint', 'მინის ტონირება', seg('tint', orig(TINTS), tu.tint))}
     ${opt('lights', 'ფარების ფერი', seg('lights', orig(LIGHTS), tu.lights))}
     ${opt('interior', 'სალონის ფერი', seg('interior', orig(INTERIORS), tu.interior))}
@@ -278,7 +265,7 @@ function renderTuning(m) {
   if ($('#ride')) $('#ride').oninput = e => { set({ ride: +e.target.value }); $('#rideV').textContent = ride(+e.target.value); };
   $('#reset').onclick = () => {
     delete saved[m.id]; persist();
-    state.car.applyTuning(state.car.baseTuning || defaultTuning(m));
+    state.car.applyTuning(state.car.baseTuning);
     renderTuning(m);
   };
 }

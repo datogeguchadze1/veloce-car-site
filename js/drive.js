@@ -314,7 +314,7 @@ function buildHud(stage) {
 export function createDrive({ scene, camera, controls, keyLight, hide, stage, onExit }) {
   let track = null, hud = null, car = null, engine = null;
   const keys = { gas: 0, brake: 0, left: 0, right: 0, hand: 0 };
-  const st = { manual: false, vl: 0, yaw: 0, shake: 0, drift: 0, driftIdle: 0, score: 0, driftBest: 0, smokeT: 0, gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0, spin: 0 };
+  const st = { manual: false, vl: 0, yaw: 0, shake: 0, drift: 0, driftIdle: 0, score: 0, driftBest: 0, smokeT: 0, gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0 };
   let perf, wheelbase, redline, spec;
   const IDLE = 850;
   const RATIOS = [0.25, 0.41, 0.57, 0.72, 0.86, 1.0];   // share of top speed reached at the redline, per gear
@@ -470,7 +470,6 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       car.body.rotation.set(0, 0, 0);
       if (car.setSteer) car.setSteer(0);
       if (car.setGauges) car.setGauges(0, 0);
-    (car.wheels || []).forEach(w => { w.obj.rotation.set(0, w.baseY, 0); });
     }
     onExit && onExit();
   }
@@ -595,11 +594,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     st.roll += (THREE.MathUtils.clamp(-lat * 0.006, -0.06, 0.06) - st.roll) * (1 - Math.exp(-dt * 6));
     st.pitch += (lon * 0.012 - st.pitch) * (1 - Math.exp(-dt * 5));
     car.body.rotation.set(st.roll, 0, st.pitch);
-    st.spin += st.v * dt / (car.model.wheel.r || 0.33);
     if (car.setSteer) car.setSteer(st.steer * 7);            // steering wheel: ~7x the road-wheel angle
-    (car.wheels || []).forEach(w => {
-      w.obj.rotation.set(0, w.baseY + (w.front ? st.steer : 0), -st.spin * w.s);
-    });
 
     // ---- drifting: points, skid marks, smoke, squeal ----
     const slipNow = Math.atan2(st.vl, Math.max(Math.abs(st.v), 1));
