@@ -3,6 +3,7 @@
 // optional engine sound. main.js owns the scene; this module adds the track
 // while driving and removes it again on exit.
 import * as THREE from 'three';
+import { createEngineSound, engineSpec } from './engineSound.js';
 
 const ROAD_W = 14;
 
@@ -163,29 +164,6 @@ function buildTrack() {
   return { group, center, tangents, N, length, start: { x: c0.x, z: c0.z, heading: heading0 } };
 }
 
-/* ---------- engine sound ---------- */
-function makeEngine() {
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return null;
-  const ctx = new Ctx();
-  const a = ctx.createOscillator(), b = ctx.createOscillator();
-  a.type = 'sawtooth'; b.type = 'square';
-  const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 700;
-  const gain = ctx.createGain(); gain.gain.value = 0;
-  a.connect(filt); b.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
-  a.start(); b.start();
-  return {
-    set(rpm, load, on) {
-      const f = 28 + rpm * 70;
-      a.frequency.setTargetAtTime(f, ctx.currentTime, 0.05);
-      b.frequency.setTargetAtTime(f * 0.5, ctx.currentTime, 0.05);
-      filt.frequency.setTargetAtTime(500 + load * 1400, ctx.currentTime, 0.08);
-      gain.gain.setTargetAtTime(on ? 0.05 + load * 0.05 : 0, ctx.currentTime, 0.08);
-    },
-    close() { ctx.close(); },
-  };
-}
-
 /* ---------- HUD & input ---------- */
 const fmt = t => (t == null ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 
@@ -197,12 +175,15 @@ function buildHud(stage) {
       <div class="dh-lap"><small>წრე</small><b id="dhLap">0:00.00</b><small>საუკეთესო <span id="dhBest">—</span></small></div>
       <div class="dh-btns">
         <button id="dhCam" title="კამერა (C)">🎥</button>
-        <button id="dhSound" title="ხმა">🔇</button>
+        <button id="dhSound" title="ხმა">🔊</button>
         <button id="dhReset" title="ტრასაზე დაბრუნება (R)">↺</button>
         <button id="dhExit" title="გასვლა (Esc)">✕ გასვლა</button>
       </div>
     </div>
-    <div class="dh-speed"><b id="dhSpd">0</b><small>კმ/სთ</small><i id="dhOff">ბალახი</i></div>
+    <div class="dh-speed">
+      <div class="dh-rpm"><i id="dhRpm"></i></div>
+      <span class="dh-gear" id="dhGear">1</span><b id="dhSpd">0</b><small>კმ/სთ</small><i id="dhOff">ბალახი</i>
+    </div>
     <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი · C კამერა · Esc გასვლა</p>
     <div class="dh-touch">
       <div><button data-k="left">◀</button><button data-k="right">▶</button></div>
@@ -216,8 +197,10 @@ function buildHud(stage) {
 export function createDrive({ scene, camera, controls, keyLight, hide, stage, onExit }) {
   let track = null, hud = null, car = null, engine = null;
   const keys = { gas: 0, brake: 0, left: 0, right: 0, hand: 0 };
-  const st = { active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0, spin: 0 };
-  let perf, wheelbase;
+  const st = { gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0, spin: 0 };
+  let perf, wheelbase, redline, spec;
+  const IDLE = 850;
+  const RATIOS = [0.25, 0.41, 0.57, 0.72, 0.86, 1.0];   // share of top speed reached at the redline, per gear
   const savedFog = { fog: null, bg: null };
 
   const keyMap = { KeyW: 'gas', ArrowUp: 'gas', KeyS: 'brake', ArrowDown: 'brake', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', Space: 'hand' };
@@ -256,6 +239,9 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (st.active) stop();
     car = theCar;
     perf = model.perf || { vmax: 200, t100: 9 };
+    spec = engineSpec(model);
+    redline = perf.redline || (model.era === 'classic' ? 5800 : 6800);
+    st.gear = 1; st.rpm = IDLE; st.shift = 0;
     wheelbase = Math.abs(model.wheel.x[0] - model.wheel.x[1]);
     track = buildTrack();
     scene.add(track.group);
@@ -273,9 +259,13 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     hud.querySelector('#dhExit').onclick = () => stop();
     hud.querySelector('#dhCam').onclick = toggleCam;
     hud.querySelector('#dhReset').onclick = () => placeAtStart(nearestIdx());
+    // sound starts on: we are inside the click that opened drive mode, so audio may play
+    st.sound = true;
+    engine = createEngineSound(spec);
     hud.querySelector('#dhSound').onclick = e => {
       st.sound = !st.sound;
-      if (st.sound && !engine) engine = makeEngine();
+      if (st.sound && !engine) engine = createEngineSound(spec);
+      if (engine && engine.ctx.state === 'suspended') engine.ctx.resume();
       e.currentTarget.textContent = st.sound ? '🔊' : '🔇';
     };
     hud.querySelectorAll('.dh-touch button').forEach(b => {
@@ -320,7 +310,8 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (car) {
       car.root.position.set(0, 0, 0); car.root.rotation.set(0, 0, 0);
       car.body.rotation.set(0, 0, 0);
-      (car.wheels || []).forEach(w => { w.obj.rotation.set(0, w.baseY, 0); });
+      if (car.setSteer) car.setSteer(0);
+    (car.wheels || []).forEach(w => { w.obj.rotation.set(0, w.baseY, 0); });
     }
     onExit && onExit();
   }
@@ -377,6 +368,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     st.pitch += (lon * 0.012 - st.pitch) * (1 - Math.exp(-dt * 5));
     car.body.rotation.set(st.roll, 0, st.pitch);
     st.spin += st.v * dt / (car.model.wheel.r || 0.33);
+    if (car.setSteer) car.setSteer(st.steer * 7);            // steering wheel: ~7x the road-wheel angle
     (car.wheels || []).forEach(w => {
       w.obj.rotation.set(0, w.baseY + (w.front ? st.steer : 0), -st.spin * w.s);
     });
@@ -406,11 +398,30 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     hud.querySelector('#dhLap').textContent = fmt(st.time - st.lapStart);
     hud.querySelector('#dhBest').textContent = fmt(st.best);
     hud.querySelector('#dhOff').style.opacity = off ? 1 : 0;
-    if (engine) {
-      const gearSpan = vmax / 5;
-      const rpm = 0.9 + ((Math.abs(st.v) % gearSpan) / gearSpan) * 4 + (Math.abs(st.v) / vmax) * 1.5;
-      engine.set(rpm, throttle ? 1 : 0.2, st.sound);
+    // gearbox (sound + HUD only): automatic shifts at the redline
+    const speed = Math.abs(st.v);
+    let target, gearLabel;
+    if (st.v < -0.3) {
+      gearLabel = 'R';
+      target = IDLE + speed / (vmax * 0.18) * (redline - IDLE);
+    } else {
+      if (st.shift > 0) st.shift -= dt;
+      const rpmIn = g => speed / (RATIOS[g - 1] * vmax) * redline;
+      if (throttle && st.gear < RATIOS.length && rpmIn(st.gear) > redline * 0.97) { st.gear++; st.shift = 0.2; }
+      else if (st.gear > 1 && rpmIn(st.gear - 1) < redline * (throttle ? 0.62 : 0.5)) st.gear--;
+      target = Math.max(IDLE, rpmIn(st.gear));
+      if (speed < 3 && throttle) target = Math.max(target, IDLE + 2400);   // clutch slipping off the line
+      if (speed < 0.3 && !throttle) st.gear = 1;
+      gearLabel = speed < 0.3 && !throttle ? 'N' : String(st.gear);
     }
+    target = Math.min(target, redline * 1.02);
+    st.rpm += (target - st.rpm) * (1 - Math.exp(-dt * (st.shift > 0 ? 18 : 9)));
+    const load = (throttle || (brake && st.v < 0)) && st.shift <= 0 ? 1 : 0.15;
+    hud.querySelector('#dhGear').textContent = gearLabel;
+    const bar = hud.querySelector('#dhRpm');
+    bar.style.width = `${Math.min(100, st.rpm / redline * 100)}%`;
+    bar.classList.toggle('red', st.rpm > redline * 0.9);
+    if (engine) engine.set(st.rpm, load, st.sound);
   }
 
   return { start, stop, update, get active() { return st.active; } };

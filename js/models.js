@@ -351,6 +351,7 @@ export const MODELS = [
       ],
       hood: ['sw221_hood_fl', 'sw221_badge_hood_fl'],
       trunk: ['sw221_tailgate_sedan'],
+      steer: [/^sw221_steer$/],
       paint: [/^sw221_paint$/], glass: [/^sw221_glass$/, 'sw221_tinted_glass', 'sw221_glass_tint'], interior: ['sw221_leather1'],
       credit: { title: 'Mersedes-Benz S-class W221', author: 'Black Snow', license: 'CC BY 4.0', url: 'https://sketchfab.com/3d-models/mersedes-benz-s-class-w221-6b1c0ad55406406a8cf8177dc0a4f2b9' },
     },
@@ -397,6 +398,8 @@ export const MODELS = [
       file: 'models/supra/scene.gltf',
       doors: [['esta80_door_L', 'esta80_doorglass_L'], ['esta80_door_R', 'esta80_doorglass_R']],
       hood: [/^esta80_hood$/], trunk: [/^esta80_tailgate$/],
+      steer: [/^esta80_steer$/],
+      defaults: { tint: 'clear' },   // the file's glass is tinted purple
       paint: [/^esta80$/], glass: ['esta80_glass'], interior: ['sdd_leather'],
       credit: { title: 'Toyota Supra mk4', author: 'Black Snow', license: 'CC BY 4.0', url: 'https://sketchfab.com/3d-models/toyota-supra-mk4-8bebdee25b774067929bb33e648533ac' },
     },
@@ -419,6 +422,7 @@ export const MODELS = [
     glb: {
       file: 'models/m3e36/scene.gltf',
       hood: ['bmw_e36m3_97_cockpit_hooda_'], trunk: ['bmw_e36m3_97_lod0_trunk_'],
+      steer: ['bmw_e36m3_97_cockpit_steering_wheel_'],
       paint: [/^body/], glass: [/^window$/, /^glass$/], interior: ['leather'], rimMaterials: [/^rim$/, 'outer_rim'],
       credit: { title: '1997 BMW M3 E36', author: 'OUTPISTON', license: 'CC BY-NC-SA 4.0', url: 'https://sketchfab.com/3d-models/1997-bmw-m3-e36-16c6f03483b24d7da3f88cd253a33cc7' },
     },
