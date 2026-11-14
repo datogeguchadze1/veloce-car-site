@@ -213,6 +213,21 @@ export const MODELS = [
     finish: 'metallic',
     dims: { L: 4.64, W: 1.94, clr: 0.13 },
     wheel: { r: 0.34, w: 0.26, rim: 0.72, x: [1.37, -1.31], style: 'five' },
+    glb: {
+      file: 'models/sls/scene.gltf',
+      rotY: Math.PI / 2,
+      // hide the cracked-glass overlay and the motion-blur wheel shells
+      remove: ['Object_52', 'Object_7', 'Object_8'],
+      paint: ['Carpaint.007'],
+      glass: ['Glass_Clear.005', 'Glass_Windows.005'],
+      rimMaterials: ['Rim.007'],
+      interior: ['INT_Skin.005'],
+      eye: [-0.6, 0.98, -0.4],
+      credit: {
+        title: '2010 Mercedes SLS AMG', author: 'Dave Love SketchFab', license: 'CC BY 4.0',
+        url: 'https://sketchfab.com/3d-models/2010-mercedes-sls-amg-fa3fd5eeea674f37bb03283f2c53d563',
+      },
+    },
     noseLift: 0.08, tailLift: 0.1,
     top: [[2.32, 0.38], [2.29, 0.56], [2.18, 0.66], [1.8, 0.73], [1.0, 0.8], [0.3, 0.86],
       [-0.4, 0.89], [-1.3, 0.92], [-1.9, 0.92], [-2.2, 0.86], [-2.3, 0.72], [-2.32, 0.45]],
