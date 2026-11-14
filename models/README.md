@@ -1,0 +1,42 @@
+# models/ — ნამდვილი 3D მოდელები
+
+ამ საქაღალდეში იდება მანქანების `.glb` ფაილები. თუ მოდელს `js/models.js`-ში `glb` ველი აქვს და ფაილი იტვირთება, საიტი ნამდვილ მოდელს აჩვენებს. თუ ფაილი არ არსებობს ან ვერ ჩაიტვირთა, ავტომატურად გამოჩნდება სტილიზებული მაკეტი.
+
+## 1. სწორი მოდელის არჩევა (Sketchfab)
+- ფილტრები: **Downloadable** და ლიცენზია **CC0**, **CC-BY** ან **CC-BY-SA**. არ გამოიყენო „Editorial“, „NonCommercial“ და ფასიანი მოდელები.
+- კარგი მოდელის ნიშნები: **კარები ცალკე ობიექტებია**, სალონი მოდელირებულია, ბორბლები ცალკეა, ფაილი ≤ 30 MB.
+- ჩამოტვირთე ფორმატი **glTF → .glb**.
+
+## 2. შემოწმება
+```bash
+node tools/inspect-glb.mjs models/300sl.glb
+```
+ბრძანება ბეჭდავს ობიექტების ხეს, მასალებს და ზომებს (კარებისა და კაპოტის სახელებს ეძებს). შედეგი გამომიგზავნე და `js/models.js`-ში ჩანაწერს მე დავწერ.
+
+## 3. შემცირება (სურვილისამებრ, თუ ფაილი დიდია)
+```bash
+npx @gltf-transform/cli optimize models/300sl.glb models/300sl.min.glb \
+  --compress meshopt --texture-compress webp --texture-size 2048
+```
+
+## 4. `js/models.js`-ში ჩანაწერი
+```js
+glb: {
+  file: 'models/300sl.glb',
+  // scale: 'auto' (ნაგულისხმევი): ზომა იცვლება ისე, რომ სიგრძე == dims.L
+  // rotY: Math.PI / 2,        // თუ მანქანა გვერდით ან უკუღმაა მოხვედრილი (წინა მხარე +X უნდა იყოს)
+  remove: ['Ground', 'Shadow'], // ზედმეტი ობიექტები (იატაკი, სტენდი)
+  doors: ['Door_L', 'Door_R'],  // კარების ობიექტები (სახელის ნაწილიც საკმარისია)
+  gullwing: true,               // true: კარები ზემოთ იღება
+  hood: 'Hood', trunk: 'Trunk',
+  wheels: ['Wheel_FL', 'Wheel_FR', 'Wheel_RL', 'Wheel_RR'],
+  paint: ['CarPaint'],          // მასალები, რომლებსაც ტუნინგი ფერს უცვლის (თუ არ მიუთითე, მე გამოვიცნობ)
+  glass: ['Glass'], rimMaterials: ['Rim'], lights: ['Headlight'], interior: ['Leather'],
+  eye: [0.1, 1.0, -0.4],        // მძღოლის თვალის წერტილი მეტრებში (x წინ, y მაღლა, z მგზავრისკენ)
+  credit: { title: 'Mercedes 300 SL', author: 'ავტორის სახელი', license: 'CC-BY 4.0', url: 'https://sketchfab.com/…' },
+},
+```
+CC-BY ლიცენზიისთვის `credit` აუცილებელია. ის ინფო-პანელში გამოჩნდება და `CREDITS.md`-შიც უნდა ჩაიწეროს.
+
+## ფაილების სახელები
+`300sl.glb`, `190sl.glb`, `w123.glb`, `560sec.glb`, `gclass.glb`, `sls.glb` (ან სხვა სახელი, რომელსაც `glb.file` მიუთითებს).
