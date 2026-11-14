@@ -52,14 +52,25 @@ export async function loadGlbCar(m) {
   /* ---------- clean up ---------- */
   const doomed = findNodes(model, cfg.remove);
   doomed.forEach(o => o.parent && o.parent.remove(o));
+  // hide overlay meshes (motion-blur wheels, cracked glass …) by material name
+  const hidePats = toList(cfg.hideMaterials);
+  if (hidePats.length) {
+    const gone = [];
+    model.traverse(o => { if (o.isMesh && toList(o.material).some(mt => hidePats.some(p => matches(mt.name, p)))) gone.push(o); });
+    gone.forEach(o => o.parent && o.parent.remove(o));
+  }
 
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
   const holder = new THREE.Group();
   holder.add(model);
-  holder.rotation.y = cfg.rotY || 0;
   body.add(holder);
+  if (cfg.rotY === undefined) {
+    // most downloads have the car along Z; turn it so the length runs along X
+    const b0 = new THREE.Box3().setFromObject(model);
+    holder.rotation.y = (b0.max.z - b0.min.z) > (b0.max.x - b0.min.x) ? Math.PI / 2 : 0;
+  } else holder.rotation.y = cfg.rotY;
 
   /* ---------- scale, centre, put wheels on the ground ---------- */
   holder.updateMatrixWorld(true);
@@ -142,8 +153,10 @@ export async function loadGlbCar(m) {
   const toBody = new THREE.Matrix4().copy(body.matrixWorld).invert();
   const bboxIn = node => new THREE.Box3().setFromObject(node).applyMatrix4(toBody);
 
-  const makePart = (node, kind, over = {}) => {
-    const b = bboxIn(node);
+  const makePart = (nodes, kind, over = {}) => {
+    nodes = toList(nodes);
+    const b = new THREE.Box3();
+    nodes.forEach(n => b.union(bboxIn(n)));
     const c = b.getCenter(new THREE.Vector3());
     const side = c.z >= 0 ? 1 : -1;
     let pivot, axis, max;
@@ -160,19 +173,25 @@ export async function loadGlbCar(m) {
     if (over.axis) axis = over.axis;
     if (over.angle !== undefined) max = over.angle;
     const g = new THREE.Group();
-    g.name = `pivot:${node.name}`;
+    g.name = `pivot:${nodes[0].name}`;
     g.position.copy(pivot);
     body.add(g);
-    g.attach(node);
+    nodes.forEach(n => g.attach(n));
     return { pivot: g, axis, max, side };
   };
 
+  // doors: a string pattern makes every matching node its own door;
+  // an array of patterns makes all its matches one door (panel + glass + mirror …)
   const doorKind = cfg.gullwing ? 'gullwing' : 'door';
-  const doors = findNodes(model, cfg.doors).map(n => makePart(n, doorKind, cfg.doorHinge));
-  const hoodNode = findNodes(model, cfg.hood)[0];
-  const trunkNode = findNodes(model, cfg.trunk)[0];
-  const hood = hoodNode ? makePart(hoodNode, 'hood', cfg.hoodHinge) : null;
-  const trunk = trunkNode ? makePart(trunkNode, 'trunk', cfg.trunkHinge) : null;
+  const doors = [];
+  toList(cfg.doors).forEach(entry => {
+    if (Array.isArray(entry)) { const ns = findNodes(model, entry); if (ns.length) doors.push(makePart(ns, doorKind, cfg.doorHinge)); }
+    else findNodes(model, entry).forEach(n => doors.push(makePart(n, doorKind, cfg.doorHinge)));
+  });
+  const hoodNodes = findNodes(model, cfg.hood);
+  const trunkNodes = findNodes(model, cfg.trunk);
+  const hood = hoodNodes.length ? makePart(hoodNodes, 'hood', cfg.hoodHinge) : null;
+  const trunk = trunkNodes.length ? makePart(trunkNodes, 'trunk', cfg.trunkHinge) : null;
 
   // Wheels stay on the ground when the body is raised or lowered.
   const wheelNodes = findNodes(model, cfg.wheels);
@@ -204,6 +223,7 @@ export async function loadGlbCar(m) {
     open: { doors: 0, hood: 0, trunk: 0 },
     target: { doors: 0, hood: 0, trunk: 0 },
     credit: cfg.credit || null,
+    noInterior: !!cfg.noInterior,
     applyTuning(tu) {
       this.tuning = { ...tu };
       const origColor = '#' + origPaint.getHexString();
