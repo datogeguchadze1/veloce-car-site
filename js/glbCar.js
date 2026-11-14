@@ -193,6 +193,30 @@ export async function loadGlbCar(m) {
   const hood = hoodNodes.length ? makePart(hoodNodes, 'hood', cfg.hoodHinge) : null;
   const trunk = trunkNodes.length ? makePart(trunkNodes, 'trunk', cfg.trunkHinge) : null;
 
+  // Steering wheel: pivot at its centre, axis = the direction (in the
+  // car's vertical plane) along which the wheel is thinnest, i.e. the column.
+  let steer = null;
+  const steerNodes = findNodes(model, cfg.steer);
+  if (steerNodes.length) {
+    const pts = [], v = new THREE.Vector3();
+    steerNodes.forEach(n => n.traverse(o => {
+      if (!o.isMesh) return;
+      const pos = o.geometry.attributes.position, step = Math.max(1, Math.floor(pos.count / 600));
+      for (let i = 0; i < pos.count; i += step) pts.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).applyMatrix4(toBody).clone());
+    }));
+    const box = new THREE.Box3().setFromPoints(pts), c = box.getCenter(new THREE.Vector3());
+    let axis = new THREE.Vector3(1, 0, 0), best = Infinity;
+    for (let deg = -75; deg <= 75; deg += 1) {
+      const d = new THREE.Vector3(Math.cos(deg * Math.PI / 180), Math.sin(deg * Math.PI / 180), 0);
+      let lo = Infinity, hi = -Infinity;
+      for (const p of pts) { const t = (p.x - c.x) * d.x + (p.y - c.y) * d.y; if (t < lo) lo = t; if (t > hi) hi = t; }
+      if (hi - lo < best) { best = hi - lo; axis = d; }
+    }
+    const g = new THREE.Group(); g.name = 'pivot:steer'; g.position.copy(c); body.add(g);
+    steerNodes.forEach(n => g.attach(n));
+    steer = { pivot: g, axis };
+  }
+
   // Wheels stay on the ground when the body is raised or lowered.
   const wheelNodes = findNodes(model, cfg.wheels);
   wheelNodes.forEach(n => root.attach(n));
@@ -215,6 +239,7 @@ export async function loadGlbCar(m) {
     color: '#' + origPaint.getHexString(),
     finish: 'orig', rimColor: 'orig', tint: 'orig', lights: 'orig', interior: 'orig',
     rims: 'orig', spoiler: 'none', kit: 'none',
+    ...(cfg.defaults || {}),   // per-model starting tuning, e.g. clear glass
   };
 
   const car = {
@@ -224,6 +249,7 @@ export async function loadGlbCar(m) {
     target: { doors: 0, hood: 0, trunk: 0 },
     credit: cfg.credit || null,
     noInterior: !!cfg.noInterior,
+    setSteer(a) { if (steer) steer.pivot.quaternion.setFromAxisAngle(steer.axis, -a); },
     applyTuning(tu) {
       this.tuning = { ...tu };
       const origColor = '#' + origPaint.getHexString();

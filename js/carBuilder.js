@@ -474,10 +474,12 @@ export function buildCar(m, tuning, mats = createMaterials()) {
   intr.add(mesh(cons, mats.interiorDark, false));
 
   const sw = new THREE.Group();
+  const swSpin = new THREE.Group();   // rotates about the column (local X) when steering
+  sw.add(swSpin);
   const ring = new THREE.TorusGeometry(0.18, 0.017, 10, 40); ring.rotateY(Math.PI / 2);
   const hubg = new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16); hubg.rotateZ(Math.PI / 2);
   const spoke = new THREE.BoxGeometry(0.01, 0.02, 0.34);
-  sw.add(mesh(ring, m.era === 'classic' ? mats.wood : mats.interiorDark, false), mesh(hubg, mats.interiorDark, false), mesh(spoke, mats.chrome, false));
+  swSpin.add(mesh(ring, m.era === 'classic' ? mats.wood : mats.interiorDark, false), mesh(hubg, mats.interiorDark, false), mesh(spoke, mats.chrome, false));
   sw.rotation.z = 0.45;
   sw.position.set(seatX + 0.5, beltY + 0.02, drvZ);
   intr.add(sw);
@@ -629,6 +631,7 @@ export function buildCar(m, tuning, mats = createMaterials()) {
       if (prev.rims !== tu.rims) build.rims(tu.rims);
       if (prev.spoiler !== tu.spoiler || prev.kit !== tu.kit) build.parts(tu.spoiler, tu.kit);
     },
+    setSteer(a) { swSpin.rotation.x = -a; },
     update(dt) {
       const k = 1 - Math.exp(-dt * 5);
       for (const key of ['doors', 'hood', 'trunk']) this.open[key] += (this.target[key] - this.open[key]) * k;
