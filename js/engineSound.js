@@ -91,7 +91,13 @@ export function createEngineSound({ cyl = 6, layout = 'inline', ctx } = {}) {
   thudLow.connect(thudGain); thudGain.connect(master);
   const thudSrc = ctx.createBufferSource(); thudSrc.buffer = noise.buffer; thudSrc.loop = true; thudSrc.connect(thudLow);
 
-  src.start(); noise.start(); sq.start(); lfo.start(); thudSrc.start();
+  // exhaust pops (backfire): short, punchy bursts of band-passed noise
+  const popBand = ctx.createBiquadFilter(); popBand.type = 'bandpass'; popBand.frequency.value = 320; popBand.Q.value = 1.4;
+  const popGain = ctx.createGain(); popGain.gain.value = 0;
+  const popSrc = ctx.createBufferSource(); popSrc.buffer = noise.buffer; popSrc.loop = true;
+  popSrc.connect(popBand); popBand.connect(popGain); popGain.connect(master);
+
+  src.start(); noise.start(); sq.start(); lfo.start(); thudSrc.start(); popSrc.start();
 
   const fire = rpm => (rpm / 60) * (cyl / 2);
   return {
@@ -116,6 +122,13 @@ export function createEngineSound({ cyl = 6, layout = 'inline', ctx } = {}) {
       thudGain.gain.cancelScheduledValues(t);
       thudGain.gain.setValueAtTime(Math.min(1, strength) * 3, t);
       thudGain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    },
+    // one exhaust pop; strength 0 … 1
+    pop(strength = 1, t = ctx.currentTime) {
+      popBand.frequency.setValueAtTime(220 + Math.random() * 260, t);
+      popGain.gain.cancelScheduledValues(t);
+      popGain.gain.setValueAtTime(Math.min(1, strength) * 2.2, t);
+      popGain.gain.exponentialRampToValueAtTime(0.001, t + 0.07 + Math.random() * 0.05);
     },
     close() { if (ctx.close) ctx.close(); },
   };
