@@ -97,7 +97,13 @@ export function createEngineSound({ cyl = 6, layout = 'inline', ctx } = {}) {
   const popSrc = ctx.createBufferSource(); popSrc.buffer = noise.buffer; popSrc.loop = true;
   popSrc.connect(popBand); popBand.connect(popGain); popGain.connect(master);
 
-  src.start(); noise.start(); sq.start(); lfo.start(); thudSrc.start(); popSrc.start();
+  // rain on the roof: soft high noise
+  const rainHp = ctx.createBiquadFilter(); rainHp.type = 'highpass'; rainHp.frequency.value = 1600;
+  const rainGain = ctx.createGain(); rainGain.gain.value = 0;
+  const rainSrc = ctx.createBufferSource(); rainSrc.buffer = noise.buffer; rainSrc.loop = true; rainSrc.playbackRate.value = 0.73;
+  rainSrc.connect(rainHp); rainHp.connect(rainGain); rainGain.connect(master);
+
+  src.start(); noise.start(); sq.start(); lfo.start(); thudSrc.start(); popSrc.start(); rainSrc.start();
 
   const fire = rpm => (rpm / 60) * (cyl / 2);
   return {
@@ -130,6 +136,7 @@ export function createEngineSound({ cyl = 6, layout = 'inline', ctx } = {}) {
       popGain.gain.setValueAtTime(Math.min(1, strength) * 2.2, t);
       popGain.gain.exponentialRampToValueAtTime(0.001, t + 0.07 + Math.random() * 0.05);
     },
+    rain(on, t = ctx.currentTime) { rainGain.gain.setTargetAtTime(on ? 0.22 : 0, t, 0.4); },
     close() { if (ctx.close) ctx.close(); },
   };
 }

@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { MODELS, ERAS } from './models.js';
 import { FINISHES, RIM_COLORS, TINTS, LIGHTS, INTERIORS } from './tuning.js';
 import { loadGlbCar } from './glbCar.js';
-import { createDrive } from './drive.js';
+import { createDrive, loadRecords } from './drive.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -209,12 +209,19 @@ function modelNote(m) {
   const title = cr.url ? `<a href="${esc(cr.url)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(cr.title)}</a>` : esc(cr.title);
   return `მონაცემები მიახლოებითია. 3D მოდელი: ${title}, ავტორი ${esc(cr.author)} (${esc(cr.license)}).`;
 }
+// Your best lap and drift with this car on the test-drive circuit (stored in the browser).
+function recordsBlock(m) {
+  const r = loadRecords()[m.id] || {};
+  const t = r.lap ? `${Math.floor(r.lap / 60)}:${(r.lap % 60).toFixed(2).padStart(5, '0')}` : '—';
+  return `<div class="records"><span>🏁 საუკეთესო წრე <b>${t}</b></span><span>💨 საუკეთესო დრიფტი <b>${r.drift || '—'}</b></span></div>`;
+}
 function renderInfo(m) {
   $('#tab-info').innerHTML = `
     <h2>${m.brand} ${m.name}</h2>
     <span class="badge">${m.chassis}</span><span class="badge">${m.years}</span><span class="badge">${m.body}</span>
     <p class="desc">${m.desc}</p>
     <dl class="specs">${Object.entries(SPEC_LABELS).map(([k, l]) => `<div><dt>${l}</dt><dd>${m.specs[k]}</dd></div>`).join('')}</dl>
+    ${recordsBlock(m)}
     <p class="note">${modelNote(m)}</p>`;
 }
 
@@ -352,7 +359,7 @@ new ResizeObserver(resize).observe(stage);
 const drive = createDrive({
   scene, camera, controls, keyLight, stage,
   hide: blob.userData.showroom,
-  onExit: () => { updateFov(); frameCar(state.car); },
+  onExit: () => { updateFov(); frameCar(state.car); renderInfo(state.model); },
 });
 const timer = new THREE.Timer();
 renderer.setAnimationLoop(t => {
