@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { MODELS, ERAS } from './models.js';
 import { FINISHES, RIM_COLORS, TINTS, LIGHTS, INTERIORS } from './tuning.js';
 import { loadGlbCar } from './glbCar.js';
-import { createDrive, loadRecords } from './drive.js';
+import { createDrive, loadRecords, TRACKS } from './drive.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -209,11 +209,14 @@ function modelNote(m) {
   const title = cr.url ? `<a href="${esc(cr.url)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(cr.title)}</a>` : esc(cr.title);
   return `მონაცემები მიახლოებითია. 3D მოდელი: ${title}, ავტორი ${esc(cr.author)} (${esc(cr.license)}).`;
 }
-// Your best lap and drift with this car on the test-drive circuit (stored in the browser).
+// Your best lap and drift with this car on each test-drive track (stored in the browser).
 function recordsBlock(m) {
-  const r = loadRecords()[m.id] || {};
-  const t = r.lap ? `${Math.floor(r.lap / 60)}:${(r.lap % 60).toFixed(2).padStart(5, '0')}` : '—';
-  return `<div class="records"><span>🏁 საუკეთესო წრე <b>${t}</b></span><span>💨 საუკეთესო დრიფტი <b>${r.drift || '—'}</b></span></div>`;
+  const all = loadRecords();
+  const fmtLap = l => (l ? `${Math.floor(l / 60)}:${(l % 60).toFixed(2).padStart(5, '0')}` : '—');
+  return `<div class="records">${Object.entries(TRACKS).map(([id, t]) => {
+    const r = all[id === 'circuit' ? m.id : `${m.id}@${id}`] || {};
+    return `<span>${t.icon} ${t.name}<b>${fmtLap(r.lap)}</b>💨 დრიფტი ${r.drift || '—'}</span>`;
+  }).join('')}</div>`;
 }
 function renderInfo(m) {
   $('#tab-info').innerHTML = `
@@ -295,7 +298,7 @@ $$('#controls button').forEach(b => b.onclick = () => {
     controls.autoRotate = false;
     car.target.doors = car.target.hood = car.target.trunk = 0;
     $$('#controls [aria-pressed]').forEach(x => x.setAttribute('aria-pressed', false));
-    drive.start(car, state.model);
+    drive.choose(car, state.model);
   }
 });
 
