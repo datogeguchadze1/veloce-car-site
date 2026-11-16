@@ -278,6 +278,37 @@ function makeSmoke(group) {
   };
 }
 
+function makeFlames(group) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,220,1)'); gr.addColorStop(0.35, 'rgba(255,170,40,0.9)'); gr.addColorStop(1, 'rgba(255,60,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  const pool = [];
+  for (let i = 0; i < 16; i++) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    s.visible = false; group.add(s); pool.push({ s, life: 0 });
+  }
+  let k = 0;
+  return {
+    burst(x, y, z, dx, dz) {
+      for (let i = 0; i < 2; i++) {
+        const p = pool[k = (k + 1) % pool.length];
+        p.s.position.set(x - dx * (0.1 + i * 0.15), y, z - dz * (0.1 + i * 0.15));
+        p.life = 0; p.s.visible = true; p.s.scale.setScalar(0.35 - i * 0.1);
+      }
+    },
+    update(dt) {
+      for (const p of pool) {
+        if (!p.s.visible) continue;
+        p.life += dt;
+        if (p.life > 0.12) { p.s.visible = false; continue; }
+        p.s.material.opacity = 1 - p.life / 0.12;
+      }
+    },
+  };
+}
+
 /* ---------- HUD & input ---------- */
 const fmt = t => (t == null ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 
@@ -288,6 +319,7 @@ function buildHud(stage) {
     <div class="dh-top">
       <div class="dh-lap"><small>წრე</small><b id="dhLap">0:00.00</b><small>საუკეთესო <span id="dhBest">—</span></small><small>დრიფტის ქულა <span id="dhScore">0</span> · რეკორდი <span id="dhDriftBest">0</span></small></div>
       <div class="dh-btns">
+        <button id="dhTilt" class="touch-only" title="დახრით მართვა">📱</button>
         <button id="dhMode" title="გადაცემათა კოლოფი: ავტომატი / მექანიკა (M)">A</button>
         <button id="dhCam" title="კამერა (C)">🎥</button>
         <button id="dhSound" title="ხმა">🔊</button>
@@ -295,6 +327,8 @@ function buildHud(stage) {
         <button id="dhExit" title="გასვლა (Esc)">✕ გასვლა</button>
       </div>
     </div>
+    <div class="dh-speedfx" id="dhFx"></div>
+    <div class="dh-input"><span>გაზი<i><b id="dhInGas"></b></i></span><span>მუხრუჭი<i><b id="dhInBrake"></b></i></span><em id="dhInHand">ხელის<br>მუხრუჭი</em></div>
     <div class="dh-drift" id="dhDrift"><b id="dhDriftPts">0</b><small id="dhDriftLbl">დრიფტი</small></div>
     <div class="dh-speed">
       <div class="dh-rpm"><i id="dhRpm"></i></div>
@@ -302,9 +336,13 @@ function buildHud(stage) {
     </div>
     <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · R ტრასაზე · Esc გასვლა</p>
     <div class="dh-touch">
-      <div><button data-k="left">◀</button><button data-k="right">▶</button></div>
+      <div class="dh-steer"><button data-k="left" aria-label="მარცხნივ">◀</button><button data-k="right" aria-label="მარჯვნივ">▶</button></div>
       <div class="dh-shift"><button data-shift="1">＋</button><button data-shift="-1">－</button></div>
-      <div><button data-k="hand">✋</button><button data-k="brake">⏸</button><button data-k="gas">▲</button></div>
+      <div class="dh-feet">
+        <button class="dh-hb" data-k="hand" aria-label="ხელის მუხრუჭი"><span class="dh-hb-lever"><i></i></span><small>ხელის მუხრუჭი</small></button>
+        <div class="pedal brake" data-pedal="brake" role="button" aria-label="მუხრუჭი"><span class="pad"></span><small>მუხრუჭი</small></div>
+        <div class="pedal gas" data-pedal="gas" role="button" aria-label="გაზი"><span class="pad"></span><small>გაზი</small></div>
+      </div>
     </div>`;
   stage.appendChild(el);
   return el;
@@ -313,8 +351,50 @@ function buildHud(stage) {
 /* ---------- public API ---------- */
 export function createDrive({ scene, camera, controls, keyLight, hide, stage, onExit }) {
   let track = null, hud = null, car = null, engine = null;
-  const keys = { gas: 0, brake: 0, left: 0, right: 0, hand: 0 };
-  const st = { manual: false, vl: 0, yaw: 0, shake: 0, drift: 0, driftIdle: 0, score: 0, driftBest: 0, smokeT: 0, gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0 };
+  const keys = { gas: 0, brake: 0, left: 0, right: 0, hand: 0 };   // gas / brake are 0 … 1 (analog pedals)
+  const isTouch = matchMedia('(pointer: coarse)').matches;
+  const buzz = ms => { if (isTouch && navigator.vibrate) { try { navigator.vibrate(ms); } catch { /* not allowed */ } } };
+  // tilt steering: angle of gravity in the screen plane, relative to when it was switched on
+  const tilt = { on: false, base: null, raw: 0, value: 0 };
+  const onMotion = e => {
+    const g = e.accelerationIncludingGravity;
+    if (!g || g.x == null) return;
+    const ang = Math.atan2(g.x, g.y);
+    if (tilt.base === null) tilt.base = ang;
+    let d = ang - tilt.base; d = Math.atan2(Math.sin(d), Math.cos(d));
+    const deg = d * 180 / Math.PI, dead = 2, full = 25;
+    tilt.raw = Math.max(-1, Math.min(1, Math.sign(deg) * Math.max(0, Math.abs(deg) - dead) / (full - dead)));
+  };
+  async function setTilt(on) {
+    if (on && typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) {
+      try { if (await DeviceMotionEvent.requestPermission() !== 'granted') on = false; } catch { on = false; }
+    }
+    tilt.on = on; tilt.base = null; tilt.raw = 0;
+    if (on) addEventListener('devicemotion', onMotion); else removeEventListener('devicemotion', onMotion);
+    try { localStorage.setItem('veloce-tilt', on ? '1' : '0'); } catch { /* private mode */ }
+    if (hud) { hud.classList.toggle('tilt', on); hud.querySelector('#dhTilt').classList.toggle('on', on); }
+  }
+
+  // phones: full screen + landscape; where the browser cannot rotate, the stage is turned with CSS
+  const applyOrientation = () => {
+    const force = st.active && isTouch && innerHeight > innerWidth;
+    document.body.classList.toggle('forced-landscape', force);
+  };
+  addEventListener('resize', applyOrientation);
+  document.addEventListener('fullscreenchange', applyOrientation);
+  addEventListener('orientationchange', () => setTimeout(applyOrientation, 200));
+  async function goLandscape() {
+    if (!isTouch) return;
+    try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch { /* not allowed */ }
+    try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { /* not supported (iPhone) */ }
+    applyOrientation();
+  }
+  function leaveLandscape() {
+    try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch { /* ignore */ }
+    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); } catch { /* ignore */ }
+    document.body.classList.remove('forced-landscape');
+  }
+  const st = { popT: 0, handWas: 0, fxK: 0, manual: false, vl: 0, yaw: 0, shake: 0, drift: 0, driftIdle: 0, score: 0, driftBest: 0, smokeT: 0, gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0 };
   let perf, wheelbase, redline, spec;
   const IDLE = 850;
   const RATIOS = [0.25, 0.41, 0.57, 0.72, 0.86, 1.0];   // share of top speed reached at the redline, per gear
@@ -359,10 +439,10 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     const vmax = perf.vmax / 3.6, speed = Math.abs(st.v);
     if (dir > 0) {
       if (st.gear === -1) { if (speed < 2) st.gear = 1; }
-      else if (st.gear < RATIOS.length) { st.gear++; st.shift = 0.15; }
+      else if (st.gear < RATIOS.length) { st.gear++; st.shift = 0.15; buzz(10); }
     } else if (st.gear > 1) {
       if (speed / (RATIOS[st.gear - 2] * vmax) > 1.1) { flash('ბრუნები!'); return; }
-      st.gear--; st.shift = 0.1;
+      st.gear--; st.shift = 0.1; buzz(10);
     } else if (st.gear === 1 && speed < 2) st.gear = -1;
   }
 
@@ -396,6 +476,8 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     track = buildTrack();
     track.skids = makeSkids(track.group);
     track.smoke = makeSmoke(track.group);
+    track.flames = makeFlames(track.group);
+    goLandscape();
     scene.add(track.group);
     st.score = 0;
     hide.forEach(o => (o.visible = false));
@@ -426,6 +508,26 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       if (engine && engine.ctx.state === 'suspended') engine.ctx.resume();
       e.currentTarget.textContent = st.sound ? '🔊' : '🔇';
     };
+    hud.querySelector('#dhTilt').onclick = () => setTilt(!tilt.on);
+    let tiltSaved = '0';
+    try { tiltSaved = localStorage.getItem('veloce-tilt') || '0'; } catch { /* private mode */ }
+    if (tiltSaved === '1' && isTouch && !(typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission)) setTilt(true);
+    // analog pedals: the lower on the pedal you press (or the further you slide down), the harder
+    hud.querySelectorAll('[data-pedal]').forEach(p => {
+      const k = p.dataset.pedal;
+      const set = e => {
+        const h = p.offsetHeight || 1;
+        const f = Math.max(0, Math.min(1, e.offsetY / h));
+        keys[k] = 0.35 + 0.65 * f;
+        p.style.setProperty('--press', keys[k].toFixed(2));
+      };
+      p.addEventListener('pointerdown', e => { e.preventDefault(); try { p.setPointerCapture(e.pointerId); } catch { /* old browsers */ } p.classList.add('on'); set(e); });
+      p.addEventListener('pointermove', e => { if (p.classList.contains('on')) set(e); });
+      const off = () => { keys[k] = 0; p.classList.remove('on'); p.style.setProperty('--press', 0); };
+      p.addEventListener('pointerup', off);
+      p.addEventListener('pointercancel', off);
+      p.addEventListener('lostpointercapture', off);
+    });
     hud.querySelectorAll('.dh-touch button[data-k]').forEach(b => {
       const k = b.dataset.k;
       const on = e => { e.preventDefault(); keys[k] = 1; b.classList.add('on'); };
@@ -440,6 +542,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     st.lapStart = st.time; st.armed = false; st.cam = 'chase';
     st.active = true;
     document.body.classList.add('driving');
+    applyOrientation();
     // put the camera behind the car straight away
     update(0, true);
   }
@@ -448,6 +551,8 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (!st.active) return;
     st.active = false;
     document.body.classList.remove('driving');
+    leaveLandscape();
+    removeEventListener('devicemotion', onMotion); tilt.on = false;
     Object.keys(keys).forEach(k => (keys[k] = 0));
     scene.remove(track.group);
     track.group.traverse(o => {
@@ -487,9 +592,9 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     // ---- longitudinal (st.v = speed along the car, st.vl = sideways) ----
     const throttle = keys.gas, brake = keys.brake;
     if (!st.manual) {
-      if (throttle && st.v >= -0.5) st.v += a0 * Math.max(0, 1 - st.v / vmax) * dt;
+      if (throttle && st.v >= -0.5) st.v += throttle * a0 * Math.max(0, 1 - st.v / vmax) * dt;
       if (brake) {
-        if (st.v > 0.5) st.v -= 11 * dt;
+        if (st.v > 0.5) st.v -= 11 * brake * dt;
         else st.v = Math.max(st.v - 4 * dt, -8);            // reverse
       }
     } else {
@@ -500,11 +605,11 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
         const top = RATIOS[g - 1] * vmax, r = Math.abs(st.v) / top;   // r = share of the redline
         if (throttle && st.shift <= 0 && r < 1 && st.v > -0.5) {
           const lug = g === 1 ? 1 : Math.min(1, 0.25 + r * 2.2);        // too high a gear bogs down
-          st.v += a0 * (1.22 - 0.06 * g) * lug * Math.max(0, 1 - st.v / vmax) * dt;
+          st.v += throttle * a0 * (1.22 - 0.06 * g) * lug * Math.max(0, 1 - st.v / vmax) * dt;
         }
         if (st.v > top) st.v -= Math.min(st.v - top, 7 * dt);          // rev limiter / engine braking
       }
-      if (brake) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), 11 * dt);
+      if (brake) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), 11 * brake * dt);
     }
     if (keys.hand) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), 4 * dt);
     if (!throttle && !brake) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), (1.2 + 0.0012 * st.v * st.v) * dt);
@@ -517,7 +622,9 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     const slip = Math.atan2(st.vl, Math.max(Math.abs(st.v), 1));
     const sliding = Math.abs(slip) > 0.12 && Math.abs(st.v) > 6;
     const lock = 0.55 / (1 + Math.abs(st.v) / 22) * (keys.hand || sliding ? 1.7 : 1);
-    const want = (keys.left - keys.right) * lock;
+    if (tilt.on) tilt.value += (tilt.raw - tilt.value) * (1 - Math.exp(-dt * 14));
+    const steerIn = tilt.on && !keys.left && !keys.right ? tilt.value : keys.left - keys.right;
+    const want = steerIn * lock;
     st.steer += (want - st.steer) * (1 - Math.exp(-dt * 8));
 
     // ---- grip: the rear lets go on the handbrake, or under power once sliding ----
@@ -573,6 +680,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       st.hits = (st.hits || 0) + 1;
       st.shake = Math.min(1, impact / 15);
       if (engine && st.sound) engine.thud(impact / 15);
+      buzz(Math.round(30 + Math.min(1, impact / 15) * 90));
       if (st.drift > 0) { st.drift = 0; flash('დაიკარგა!'); }
     }
     // laps: crossing index 0 after passing the far side of the track
@@ -638,12 +746,16 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       else camera.position.lerp(tmp, 1 - Math.exp(-dt * 5));
       look.set(st.x + fwd.x * 4, car.size.y * 0.6, st.z + fwd.z * 4);
       camera.lookAt(look);
+      const baseFov = camera.aspect < 1 ? 75 : 62, fov = baseFov + 8 * st.fxK;
+      if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
       if (st.shake > 0) {
         camera.position.x += (Math.random() - 0.5) * st.shake * 0.5;
         camera.position.y += (Math.random() - 0.5) * st.shake * 0.3;
         st.shake = Math.max(0, st.shake - dt * 2.5);
       }
     } else {
+      const coFov = camera.aspect < 1 ? 75 : 62;
+      if (camera.fov !== coFov) { camera.fov = coFov; camera.updateProjectionMatrix(); }
       const eye = car.driverEye.clone().add(car.body.position).applyEuler(car.root.rotation).add(car.root.position);
       camera.position.copy(eye);
       look.copy(eye).addScaledVector(fwd, 10); look.y -= 0.6;
@@ -652,6 +764,13 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
 
     // HUD + sound
     const kmh = Math.abs(st.v) * 3.6;
+    hud.querySelector('#dhInGas').style.height = `${Math.round(throttle * 100)}%`;
+    hud.querySelector('#dhInBrake').style.height = `${Math.round(brake * 100)}%`;
+    hud.querySelector('#dhInHand').classList.toggle('on', !!keys.hand);
+    if (keys.hand && !st.handWas) buzz(15);
+    st.handWas = keys.hand;
+    st.fxK += (Math.max(0, Math.min(1, (kmh - 150) / 130)) - st.fxK) * (1 - Math.exp(-dt * 3));
+    hud.querySelector('#dhFx').style.opacity = (st.fxK * 0.85).toFixed(2);
     hud.querySelector('#dhSpd').textContent = Math.round(kmh);
     hud.querySelector('#dhLap').textContent = fmt(st.time - st.lapStart);
     hud.querySelector('#dhBest').textContent = fmt(st.best);
@@ -674,7 +793,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     } else {
       if (st.shift > 0) st.shift -= dt;
       const rpmIn = g => speed / (RATIOS[g - 1] * vmax) * redline;
-      if (throttle && st.gear < RATIOS.length && rpmIn(st.gear) > redline * 0.97) { st.gear++; st.shift = 0.2; }
+      if (throttle && st.gear < RATIOS.length && rpmIn(st.gear) > redline * 0.97) { st.gear++; st.shift = 0.2; buzz(10); }
       else if (st.gear > 1 && rpmIn(st.gear - 1) < redline * (throttle ? 0.62 : 0.5)) st.gear--;
       target = Math.max(IDLE, rpmIn(st.gear));
       if (speed < 3 && throttle) target = Math.max(target, IDLE + 2400);   // clutch slipping off the line
@@ -683,13 +802,25 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     }
     target = Math.min(target, redline * 1.02);
     st.rpm += (target - st.rpm) * (1 - Math.exp(-dt * (st.shift > 0 ? 18 : 9)));
-    const load = (throttle || (brake && st.v < 0)) && st.shift <= 0 ? 1 : 0.15;
+    const load = st.shift > 0 ? 0.15 : Math.max(0.15, throttle, st.v < 0 ? brake : 0);
     hud.querySelector('#dhGear').textContent = gearLabel;
     const bar = hud.querySelector('#dhRpm');
     bar.style.width = `${Math.min(100, st.rpm / redline * 100)}%`;
     bar.classList.toggle('red', st.rpm > redline * 0.9);
     if (car.setGauges) car.setGauges(kmh, st.rpm);
     if (engine) engine.set(st.rpm, load, st.sound);
+    // backfire: lifting off at high revs, or bouncing off the limiter
+    const lifted = !throttle && st.rpm > redline * 0.7 && speed > 8;
+    const limiter = throttle && st.rpm > redline * 0.97;
+    if ((lifted || limiter) && (st.popT -= dt) <= 0) {
+      st.popT = 0.06 + Math.random() * (lifted ? 0.16 : 0.3);
+      if (Math.random() < (lifted ? 0.55 : 0.35)) {
+        if (engine && st.sound) engine.pop(0.5 + Math.random() * 0.5);
+        const ex = car.size.x / 2 + 0.05;
+        track.flames.burst(st.x - fwd.x * ex, 0.32, st.z - fwd.z * ex, fwd.x, fwd.z);
+      }
+    }
+    track.flames.update(dt);
   }
 
   // debug hook used by the automated test driver

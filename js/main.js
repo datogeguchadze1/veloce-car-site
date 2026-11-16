@@ -335,7 +335,7 @@ async function makeThumbs() {
 
 /* ---------- loop ---------- */
 function updateFov() {
-  const portrait = camera.aspect < 1;
+  const portrait = camera.aspect < 1;   // aspect comes from the stage's own (unrotated) size
   const driving = document.body.classList.contains('driving');
   camera.fov = driving ? (portrait ? 75 : 62) : state.inside ? (portrait ? 90 : 70) : (portrait ? 48 : 35);
   camera.updateProjectionMatrix();

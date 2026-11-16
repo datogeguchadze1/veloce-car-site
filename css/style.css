@@ -160,20 +160,67 @@ body.driving .stage { height: auto; min-height: 0 }
 #dhMode { font-family: Orbitron, sans-serif; font-weight: 900; min-width: 40px }
 .drive-hud.manual #dhMode { background: #ffb03a; color: #111; border-color: #ffb03a }
 .dh-shift { display: none !important }
-.dh-touch { display: none }
+.dh-touch, .touch-only { display: none !important }
+.drive-hud .pedal, .drive-hud .dh-hb { pointer-events: auto }
+#dhTilt.on { background: #4fb3ff; color: #031320; border-color: #4fb3ff }
+
+/* desktop: what the pedals are doing */
+.dh-input { position: absolute; left: 16px; bottom: 34px; display: flex; gap: 10px; align-items: flex-end; font-family: 'Noto Sans Georgian', sans-serif; font-size: .62rem; color: #cfd6e2; text-align: center }
+.dh-input span { display: flex; flex-direction: column-reverse; align-items: center; gap: 4px }
+.dh-input i { position: relative; display: block; width: 14px; height: 56px; border-radius: 4px; background: #0008; border: 1px solid #ffffff35; overflow: hidden }
+.dh-input i b { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #33d17a }
+.dh-input span + span i b { background: #ff3b3b }
+.dh-input em { font-style: normal; padding: 4px 6px; border-radius: 6px; border: 1px solid #ffffff35; background: #0008; line-height: 1.15 }
+.dh-input em.on { background: #ffb03a; color: #111; border-color: #ffb03a; font-weight: 700 }
+
+/* speed effect: edges stretch and fade at high speed */
+.dh-speedfx { position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 52%, rgba(10,14,22,.55) 100%),
+    repeating-conic-gradient(from 0deg at 50% 55%, rgba(255,255,255,.0) 0deg 3deg, rgba(255,255,255,.12) 3deg 3.6deg);
+  -webkit-mask: radial-gradient(ellipse at center, transparent 45%, #000 85%); mask: radial-gradient(ellipse at center, transparent 45%, #000 85%) }
+
 @media (pointer: coarse), (max-width: 860px) {
-  .dh-help { display: none }
-  .dh-speed { right: 50%; transform: translateX(50%); bottom: 92px; text-align: center }
-  .dh-rpm { margin: 0 auto 8px; width: 140px }
-  .dh-touch { display: flex; justify-content: space-between; position: absolute; left: 10px; right: 10px; bottom: 14px }
-  .dh-touch div { display: flex; gap: 8px }
-  .dh-touch button { width: 60px; height: 60px; border-radius: 50%; background: #0008; border: 2px solid #ffffff50; color: #fff; font-size: 1.5rem; touch-action: none; user-select: none; -webkit-user-select: none }
-  .dh-touch button.on { background: #4fb3ffaa; border-color: #fff }
-  .drive-hud.manual .dh-shift { display: flex !important; flex-direction: column; gap: 6px; position: absolute; right: 0; bottom: 74px }
-  .dh-shift button { width: 54px !important; height: 44px !important; border-radius: 12px !important; background: #ffb03acc !important; color: #111 !important; font-weight: 900 }
-  .dh-touch [data-k="gas"] { background: #1e7a3caa }
-  .dh-touch [data-k="brake"] { background: #8a1f2aaa }
-  .dh-touch [data-k="hand"] { background: #7a5a12aa; font-size: 1.2rem }
+  .dh-help, .dh-input { display: none }
+  .touch-only { display: inline-block !important }
+  .dh-speed { right: 50%; transform: translateX(50%); bottom: auto; top: 12px; text-align: center }
+  .dh-speed b { font-size: 2.3rem }
+  .dh-rpm { margin: 0 auto 6px; width: 130px }
+  .dh-gear { font-size: 1.1rem }
+  .dh-lap b { font-size: 1.1rem }
+  .dh-lap small:last-child { display: none }
+  .dh-btns button { padding: 6px 9px }
+  .dh-touch { display: flex !important; justify-content: space-between; align-items: flex-end; position: absolute; left: 12px; right: 12px; bottom: 12px; pointer-events: none; user-select: none; -webkit-user-select: none }
+  .dh-steer { display: flex; gap: 12px }
+  .dh-steer button { pointer-events: auto; width: 74px; height: 74px; border-radius: 50%; background: #0009; border: 2px solid #ffffff55; color: #fff; font-size: 1.7rem; touch-action: none }
+  .dh-steer button.on { background: #4fb3ffaa; border-color: #fff }
+  .drive-hud.tilt .dh-steer { visibility: hidden }
+  .dh-feet { display: flex; gap: 12px; align-items: flex-end }
+
+  /* pedals: aluminium plates with rubber ribs, hinged at the bottom */
+  .pedal { --press: 0; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; touch-action: none; cursor: pointer }
+  .pedal .pad { display: block; border-radius: 10px 10px 14px 14px; border: 2px solid #ffffff70; transform-origin: 50% 100%;
+    transform: perspective(300px) rotateX(calc(var(--press) * 28deg)); transition: transform .06s;
+    background: repeating-linear-gradient(180deg, #2a2c30 0 7px, #45484e 7px 10px), #333; box-shadow: 0 6px 16px #000a, inset 0 0 0 3px #ffffff18; pointer-events: none }
+  .pedal.gas .pad { width: 56px; height: 120px }
+  .pedal.brake .pad { width: 92px; height: 82px }
+  .pedal.on .pad { border-color: #fff; filter: brightness(calc(1 + var(--press) * .6)) }
+  .pedal.gas.on .pad { box-shadow: 0 0 22px #33d17a, inset 0 0 0 3px #33d17a }
+  .pedal.brake.on .pad { box-shadow: 0 0 22px #ff3b3b, inset 0 0 0 3px #ff3b3b }
+  .pedal small, .dh-hb small { margin-top: 4px; font-family: 'Noto Sans Georgian', sans-serif; font-size: .62rem; color: #e8ecf2; pointer-events: none }
+
+  /* handbrake: a lever you pull */
+  .dh-hb { pointer-events: auto; display: flex; flex-direction: column; align-items: center; background: none; border: 0; padding: 0; touch-action: none }
+  .dh-hb-lever { position: relative; display: block; width: 58px; height: 96px; border-radius: 14px; background: #0009; border: 2px solid #ffffff55; overflow: hidden; pointer-events: none }
+  .dh-hb-lever i { position: absolute; left: 50%; bottom: 10px; width: 16px; height: 62px; margin-left: -8px; border-radius: 8px; background: linear-gradient(90deg, #555, #bbb, #555);
+    transform-origin: 50% 100%; transform: rotate(-24deg); transition: transform .08s }
+  .dh-hb-lever i::before { content: ""; position: absolute; left: -5px; top: -8px; width: 26px; height: 20px; border-radius: 8px; background: #1a1a1c; border: 2px solid #777 }
+  .dh-hb.on .dh-hb-lever { border-color: #ffb03a; box-shadow: 0 0 18px #ffb03a }
+  .dh-hb.on .dh-hb-lever i { transform: rotate(10deg) translateY(-14px) }
+
+  .drive-hud.manual .dh-shift { display: flex !important; flex-direction: column; gap: 8px; position: absolute; left: 0; bottom: 92px; pointer-events: auto }
+  .dh-shift button { width: 58px; height: 46px; border-radius: 12px; background: #ffb03acc; color: #111; font-weight: 900; font-size: 1.3rem; border: 0; touch-action: none }
   body.driving .stage { position: fixed; inset: 0; height: auto; z-index: 50 }
   body.driving { overflow: hidden }
 }
+/* phone held upright but the browser cannot rotate: turn the stage instead */
+body.driving.forced-landscape .stage { inset: auto; top: 0; left: 0; width: 100dvh; height: 100dvw; transform-origin: 0 0; transform: translateX(100dvw) rotate(90deg) }
