@@ -179,7 +179,37 @@ function buildTrack() {
   trunk.castShadow = crown.castShadow = true;
   group.add(trunk, crown);
 
-  group.add(new THREE.HemisphereLight(0xcfe4ff, 0x4d7a3a, 0.9));
+  const hemi = new THREE.HemisphereLight(0xcfe4ff, 0x4d7a3a, 0.9);
+  group.add(hemi);
+
+  // street lamps for night driving: poles, glowing heads and pools of light on the road
+  const lamps = new THREE.Group(); lamps.visible = false; group.add(lamps);
+  const lampSpots = [];
+  for (let i = 0, s = 1; i < N; i += 24, s = -s) {
+    const c = center[i], t = tangents[i];
+    lampSpots.push({ x: c.x - t.z * s * (WALL - 0.6), z: c.z + t.x * s * (WALL - 0.6), lx: c.x - t.z * s * (WALL - 4), lz: c.z + t.x * s * (WALL - 4) });
+  }
+  const poleM = new THREE.MeshStandardMaterial({ color: 0x3a3d42, metalness: 0.6, roughness: 0.5 });
+  const headM = new THREE.MeshBasicMaterial({ color: 0xfff1c8 });
+  const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.12, 8, 8), poleM, lampSpots.length);
+  const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 0.18, 0.45), headM, lampSpots.length);
+  const poolTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,226,170,0.85)'); gr.addColorStop(1, 'rgba(255,226,170,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+  const pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(14, 14).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }), lampSpots.length);
+  const lm4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+  lampSpots.forEach((p, i) => {
+    poles.setMatrixAt(i, lm4.compose(new THREE.Vector3(p.x, 4, p.z), q, new THREE.Vector3(1, 1, 1)));
+    const yaw = Math.atan2(p.lx - p.x, p.lz - p.z);
+    heads.setMatrixAt(i, lm4.compose(new THREE.Vector3((p.x + p.lx) / 2, 7.95, (p.z + p.lz) / 2), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw + Math.PI / 2), new THREE.Vector3(3, 1, 1)));
+    pools.setMatrixAt(i, lm4.compose(new THREE.Vector3(p.lx, 0.09, p.lz), q, new THREE.Vector3(1, 1, 1)));
+  });
+  lamps.add(poles, heads, pools);
 
   // concrete barriers with red / white blocks on both sides
   const wallTex = canvasTex(128, 16, (g) => { g.fillStyle = '#d42a2a'; g.fillRect(0, 0, 64, 16); g.fillStyle = '#eeeeee'; g.fillRect(64, 0, 64, 16); });
@@ -211,7 +241,7 @@ function buildTrack() {
     group.add(wall);
   }
 
-  return { group, center, tangents, N, length, start: { x: c0.x, z: c0.z, heading: heading0 } };
+  return { group, center, tangents, N, length, start: { x: c0.x, z: c0.z, heading: heading0 }, road, runoff, hemi, lamps };
 }
 
 /* ---------- skid marks & tyre smoke ---------- */
@@ -309,6 +339,55 @@ function makeFlames(group) {
   };
 }
 
+function makeRain(group) {
+  const COUNT = 2600, R = 26, H = 16;
+  const pos = new Float32Array(COUNT * 6), drops = [];
+  for (let i = 0; i < COUNT; i++) drops.push({ x: (Math.random() - 0.5) * 2 * R, y: Math.random() * H, z: (Math.random() - 0.5) * 2 * R });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  const lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xc8d6e6, transparent: true, opacity: 0.45, depthWrite: false }));
+  lines.frustumCulled = false; lines.visible = false;
+  group.add(lines);
+  return {
+    get visible() { return lines.visible; },
+    set visible(v) { lines.visible = v; },
+    update(dt, cam, vx, vz) {
+      if (!lines.visible) return;
+      for (let i = 0; i < COUNT; i++) {
+        const d = drops[i];
+        d.y -= 22 * dt; d.x -= vx * dt * 0.15; d.z -= vz * dt * 0.15;
+        if (d.y < 0) { d.y += H; d.x = (Math.random() - 0.5) * 2 * R; d.z = (Math.random() - 0.5) * 2 * R; }
+        if (d.x > R) d.x -= 2 * R; else if (d.x < -R) d.x += 2 * R;
+        if (d.z > R) d.z -= 2 * R; else if (d.z < -R) d.z += 2 * R;
+        const x = cam.x + d.x, y = d.y, z = cam.z + d.z, o = i * 6;
+        pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
+        pos[o + 3] = x + vx * 0.012; pos[o + 4] = y + 0.55; pos[o + 5] = z + vz * 0.012;
+      }
+      geo.attributes.position.needsUpdate = true;
+    },
+  };
+}
+
+/* ---------- records & ghost car ---------- */
+const REC_KEY = 'veloce-records';
+export function loadRecords() {
+  try { return JSON.parse(localStorage.getItem(REC_KEY)) || {}; } catch { return {}; }
+}
+function saveRecord(id, patch) {
+  const all = loadRecords();
+  all[id] = { ...(all[id] || {}), ...patch };
+  try { localStorage.setItem(REC_KEY, JSON.stringify(all)); } catch { /* full or private mode */ }
+}
+
+// A see-through copy of the car that replays the best lap.
+function makeGhost(car) {
+  const g = car.root.clone(true);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x7fd0ff, transparent: true, opacity: 0.28, depthWrite: false });
+  g.traverse(o => { if (o.isMesh) { o.material = mat; o.castShadow = false; o.receiveShadow = false; } if (o.isLight) o.visible = false; });
+  g.visible = false;
+  return g;
+}
+
 /* ---------- HUD & input ---------- */
 const fmt = t => (t == null ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 
@@ -321,6 +400,9 @@ function buildHud(stage) {
       <div class="dh-btns">
         <button id="dhTilt" class="touch-only" title="დახრით მართვა">📱</button>
         <button id="dhMode" title="გადაცემათა კოლოფი: ავტომატი / მექანიკა (M)">A</button>
+        <button id="dhGhost" title="მოჩვენება: საუკეთესო წრე (G)">👻</button>
+        <button id="dhNight" title="დღე / ღამე (N)">🌙</button>
+        <button id="dhRain" title="მშრალი / წვიმა (B)">🌧</button>
         <button id="dhCam" title="კამერა (C)">🎥</button>
         <button id="dhSound" title="ხმა">🔊</button>
         <button id="dhReset" title="ტრასაზე დაბრუნება (R)">↺</button>
@@ -328,13 +410,14 @@ function buildHud(stage) {
       </div>
     </div>
     <div class="dh-speedfx" id="dhFx"></div>
+    <div class="dh-delta" id="dhDelta"></div>
     <div class="dh-input"><span>გაზი<i><b id="dhInGas"></b></i></span><span>მუხრუჭი<i><b id="dhInBrake"></b></i></span><em id="dhInHand">ხელის<br>მუხრუჭი</em></div>
     <div class="dh-drift" id="dhDrift"><b id="dhDriftPts">0</b><small id="dhDriftLbl">დრიფტი</small></div>
     <div class="dh-speed">
       <div class="dh-rpm"><i id="dhRpm"></i></div>
       <span class="dh-gear" id="dhGear">1</span><b id="dhSpd">0</b><small>კმ/სთ</small><i id="dhOff">ბალახი</i>
     </div>
-    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · R ტრასაზე · Esc გასვლა</p>
+    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · G მოჩვენება · N ღამე · B წვიმა · R ტრასაზე · Esc გასვლა</p>
     <div class="dh-touch">
       <div class="dh-steer"><button data-k="left" aria-label="მარცხნივ">◀</button><button data-k="right" aria-label="მარჯვნივ">▶</button></div>
       <div class="dh-shift"><button data-shift="1">＋</button><button data-shift="-1">－</button></div>
@@ -407,6 +490,9 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (!down) return;
     if (e.code === 'Escape') stop();
     else if (e.code === 'KeyC') toggleCam();
+    else if (e.code === 'KeyG') setGhost(!env.ghost);
+    else if (e.code === 'KeyN') setEnv({ night: !env.night });
+    else if (e.code === 'KeyB') setEnv({ rain: !env.rain });
     else if (e.code === 'KeyM') setManual(!st.manual);
     else if (e.code === 'KeyE') shift(1);
     else if (e.code === 'KeyQ') shift(-1);
@@ -421,7 +507,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (!hud) return;
     const el = hud.querySelector('#dhDrift');
     hud.querySelector('#dhDriftPts').textContent = text;
-    hud.querySelector('#dhDriftLbl').textContent = text.startsWith('+') ? 'ქულა' : text === 'ბრუნები!' ? 'ძალიან მაღალია' : 'დაჯახება';
+    hud.querySelector('#dhDriftLbl').textContent = text.startsWith('+') ? 'ქულა' : text === 'ბრუნები!' ? 'ძალიან მაღალია' : text === 'რეკორდი!' ? 'ახალი საუკეთესო წრე' : 'დაჯახება';
     el.classList.add('on'); el.dataset.flash = '1';
     clearTimeout(flashT);
     flashT = setTimeout(() => { if (hud) { delete el.dataset.flash; el.classList.remove('on'); } }, 1300);
@@ -444,6 +530,75 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       if (speed / (RATIOS[st.gear - 2] * vmax) > 1.1) { flash('ბრუნები!'); return; }
       st.gear--; st.shift = 0.1; buzz(10);
     } else if (st.gear === 1 && speed < 2) st.gear = -1;
+  }
+
+  const pref = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v === '1'; } catch { return d; } };
+  const savePref = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* private mode */ } };
+  const env = { night: pref('veloce-night', false), rain: pref('veloce-rain', false), ghost: pref('veloce-ghost', true) };
+  let sceneLights = [];      // the showroom's own lights, dimmed at night / in the rain
+  let modelId = null, ghost = null, record = null, trace = [], traceT = 0, sectors = [], headLights = null;
+  const SECTORS = [0.25, 0.5, 0.75];
+
+  function setEnv(patch) {
+    Object.assign(env, patch);
+    savePref('veloce-night', env.night); savePref('veloce-rain', env.rain);
+    if (!track) return;
+    const n = env.night, r = env.rain;
+    const sky = n ? (r ? 0x0b0f16 : 0x070b14) : (r ? 0x8e99a6 : 0xa9cbe8);
+    scene.background = new THREE.Color(sky);
+    scene.fog = new THREE.Fog(sky, n ? 40 : r ? 60 : 160, n ? 330 : r ? 420 : 900);
+    scene.environmentIntensity = n ? 0.12 : r ? 0.6 : 1;
+    for (const [l, base] of sceneLights) l.intensity = base * (n ? 0.08 : r ? 0.6 : 1);
+    keyLight.intensity = n ? 0.25 : r ? 0.9 : 2.2;
+    keyLight.color.setHex(n ? 0x9fb8ff : 0xffffff);
+    track.hemi.intensity = n ? 0.12 : r ? 0.55 : 0.9;
+    track.lamps.visible = n;
+    // a wet road is darker and shinier
+    for (const m of [track.road.material, track.runoff.material]) {
+      m.roughness = r ? 0.32 : (m === track.road.material ? 0.85 : 0.95);
+      m.metalness = r ? 0.12 : 0;
+      m.color.setHex(r ? 0xb0b4ba : 0xffffff);
+    }
+    track.rain.visible = r;
+    if (engine) engine.rain(r && st.sound);
+    if (headLights) headLights.visible = n || r;
+    if (hud) { hud.querySelector('#dhNight').classList.toggle('on', n); hud.querySelector('#dhRain').classList.toggle('on', r); }
+  }
+  function setGhost(on) {
+    env.ghost = on; savePref('veloce-ghost', on);
+    if (ghost) ghost.visible = on && !!(record && record.trace);
+    if (hud) hud.querySelector('#dhGhost').classList.toggle('on', on);
+  }
+  // two spotlights in front of the car, used at night and in the rain
+  function makeHeadLights() {
+    const g = new THREE.Group();
+    const L = car.size.x / 2, z = car.size.z * 0.3;
+    for (const s of [1, -1]) {
+      const l = new THREE.SpotLight(0xfff2dc, 260, 70, 0.42, 0.55, 1.4);
+      l.position.set(L - 0.2, 0.65, s * z);
+      l.target.position.set(L + 18, -0.6, s * z * 0.6);
+      g.add(l, l.target);
+    }
+    const glowM = new THREE.MeshBasicMaterial({ color: 0xfff6e0 });
+    for (const s of [1, -1]) { const d = new THREE.Mesh(new THREE.CircleGeometry(0.09, 16), glowM); d.rotation.y = Math.PI / 2; d.position.set(L + 0.02, 0.62, s * z); g.add(d); }
+    g.visible = false;
+    car.root.add(g);
+    return g;
+  }
+  // replay position for the ghost at time t of the lap (trace sampled every 0.1 s)
+  function ghostAt(t) {
+    const tr = record.trace, n = tr.length / 3;
+    const f = Math.min(n - 1.001, Math.max(0, t * 10)), i = Math.floor(f), a = f - i;
+    const lerp = (k) => tr[i * 3 + k] + (tr[(i + 1) * 3 + k] - tr[i * 3 + k]) * a;
+    let h0 = tr[i * 3 + 2], h1 = tr[(i + 1) * 3 + 2]; h1 = h0 + Math.atan2(Math.sin(h1 - h0), Math.cos(h1 - h0));
+    return { x: lerp(0), z: lerp(1), h: h0 + (h1 - h0) * a };
+  }
+  function showDelta(d) {
+    if (!hud) return;
+    const el = hud.querySelector('#dhDelta');
+    el.textContent = `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(2)}`;
+    el.className = 'dh-delta on ' + (d > 0 ? 'slow' : 'fast');
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 2200);
   }
 
   function toggleCam() { st.cam = st.cam === 'chase' ? 'cockpit' : 'chase'; }
@@ -469,6 +624,10 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (st.active) stop();
     car = theCar;
     perf = model.perf || { vmax: 200, t100: 9 };
+    modelId = model.id;
+    record = loadRecords()[modelId] || null;
+    st.best = record && record.lap ? record.lap : null;
+    st.driftBest = record && record.drift ? record.drift : 0;
     spec = engineSpec(model);
     redline = perf.redline || (model.era === 'classic' ? 5800 : 6800);
     st.gear = 1; st.rpm = IDLE; st.shift = 0;
@@ -477,6 +636,10 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     track.skids = makeSkids(track.group);
     track.smoke = makeSmoke(track.group);
     track.flames = makeFlames(track.group);
+    track.rain = makeRain(track.group);
+    ghost = makeGhost(car); track.group.add(ghost);
+    sceneLights = scene.children.filter(o => o.isLight && o !== keyLight).map(l => [l, l.intensity]);
+    headLights = makeHeadLights();
     goLandscape();
     scene.add(track.group);
     st.score = 0;
@@ -540,6 +703,12 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
 
     placeAtStart(0);
     st.lapStart = st.time; st.armed = false; st.cam = 'chase';
+    trace = []; traceT = 0; sectors = [];
+    hud.querySelector('#dhGhost').onclick = () => setGhost(!env.ghost);
+    hud.querySelector('#dhNight').onclick = () => setEnv({ night: !env.night });
+    hud.querySelector('#dhRain').onclick = () => setEnv({ rain: !env.rain });
+    setGhost(env.ghost);
+    setEnv({});
     st.active = true;
     document.body.classList.add('driving');
     applyOrientation();
@@ -554,6 +723,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     leaveLandscape();
     removeEventListener('devicemotion', onMotion); tilt.on = false;
     Object.keys(keys).forEach(k => (keys[k] = 0));
+    if (ghost) track.group.remove(ghost);
     scene.remove(track.group);
     track.group.traverse(o => {
       if (o.geometry) o.geometry.dispose();
@@ -565,6 +735,11 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     st.sound = false;
     hide.forEach(o => (o.visible = true));
     scene.fog = savedFog.fog; scene.background = savedFog.bg;
+    scene.environmentIntensity = 1; keyLight.intensity = 2.2; keyLight.color.setHex(0xffffff);
+    for (const [l, base] of sceneLights) l.intensity = base;
+    sceneLights = [];
+    if (headLights) { car.root.remove(headLights); headLights.traverse(o => { if (o.dispose) o.dispose(); }); headLights = null; }
+    ghost = null;
     Object.assign(keyLight.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 20 });
     keyLight.shadow.camera.updateProjectionMatrix();
     keyLight.position.set(4, 8, 5); keyLight.target.position.set(0, 0, 0);
@@ -594,7 +769,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (!st.manual) {
       if (throttle && st.v >= -0.5) st.v += throttle * a0 * Math.max(0, 1 - st.v / vmax) * dt;
       if (brake) {
-        if (st.v > 0.5) st.v -= 11 * brake * dt;
+        if (st.v > 0.5) st.v -= (env.rain ? 8.2 : 11) * brake * dt;
         else st.v = Math.max(st.v - 4 * dt, -8);            // reverse
       }
     } else {
@@ -609,7 +784,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
         }
         if (st.v > top) st.v -= Math.min(st.v - top, 7 * dt);          // rev limiter / engine braking
       }
-      if (brake) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), 11 * brake * dt);
+      if (brake) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), (env.rain ? 8.2 : 11) * brake * dt);
     }
     if (keys.hand) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), 4 * dt);
     if (!throttle && !brake) st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), (1.2 + 0.0012 * st.v * st.v) * dt);
@@ -631,9 +806,9 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     const strong = a0 > 3;                                  // weak cars cannot hold a power slide
     const rearLoose = keys.hand || (throttle && sliding && strong && Math.abs(slip) < 1.2);
     const spun = Math.abs(slip) > 1.2;                       // facing well away from the travel direction
-    const grip = off ? 2.5 : rearLoose ? (keys.hand ? 0.8 : 1.4) : spun ? 3.5 : 9;
+    const grip = (off ? 2.5 : rearLoose ? (keys.hand ? 0.8 : 1.4) : spun ? 3.5 : 9) * (env.rain ? 0.7 : 1);
     // yaw rate is limited by how much sideways force the tyres can make (~1.3 g)
-    const A_LAT = 13, sp0 = Math.max(Math.abs(st.v), 4);
+    const A_LAT = env.rain ? 9.5 : 13, sp0 = Math.max(Math.abs(st.v), 4);
     let yawWant = st.v / wheelbase * Math.tan(st.steer);
     const yawCap = rearLoose ? Math.min(2.3, 2.6 * A_LAT / sp0) : A_LAT / sp0;
     if (rearLoose) yawWant *= 1.35;
@@ -690,9 +865,17 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (prev > track.N * 0.9 && st.idx < track.N * 0.1) {      // crossed the line going forward
       if (st.armed) {
         const lap = st.time - st.lapStart;
+        if (record && record.lap) showDelta(lap - record.lap);
         if (st.best == null || lap < st.best) st.best = lap;
+        if (!record || !record.lap || lap < record.lap) {
+          // new best lap for this car: keep it, with its path for the ghost
+          record = { ...(record || {}), lap, sectors: sectors.slice(), trace: trace.map(v => Math.round(v * 100) / 100) };
+          saveRecord(modelId, { lap, sectors: record.sectors, trace: record.trace });
+          flash('რეკორდი!');
+        }
       }
       st.lapStart = st.time; st.armed = false;
+      trace = []; traceT = 0; sectors = [];
     }
 
     // car transform + cosmetic body roll / pitch
@@ -712,7 +895,8 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       st.driftIdle = 0;
     } else if (st.drift > 0 && (st.driftIdle += dt) > 0.7) {
       const pts = Math.round(st.drift);
-      st.score += pts; st.driftBest = Math.max(st.driftBest, pts);
+      st.score += pts;
+      if (pts > st.driftBest) { st.driftBest = pts; saveRecord(modelId, { drift: pts }); }
       flash(`+${pts}`);
       st.drift = 0;
     }
@@ -731,6 +915,22 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     else if (!dEl.dataset.flash) dEl.classList.remove('on');
     hud.querySelector('#dhScore').textContent = st.score;
     hud.querySelector('#dhDriftBest').textContent = st.driftBest;
+
+    // lap path for the ghost (10 samples a second) and sector splits
+    const lapT = st.time - st.lapStart;
+    if ((traceT -= dt) <= 0 && trace.length < 3 * 1800) { trace.push(st.x, st.z, st.heading); traceT += 0.1; }
+    for (let k = 0; k < SECTORS.length; k++) {
+      if (sectors[k] === undefined && st.armed !== undefined && st.idx >= track.N * SECTORS[k] && st.idx < track.N * SECTORS[k] + 40) {
+        sectors[k] = lapT;
+        if (record && record.sectors && record.sectors[k] !== undefined) showDelta(lapT - record.sectors[k]);
+      }
+    }
+    if (ghost) {
+      const show = env.ghost && record && record.trace && record.trace.length > 6 && lapT * 10 < record.trace.length / 3 - 1;
+      ghost.visible = !!show;
+      if (show) { const gp = ghostAt(lapT); ghost.position.set(gp.x, 0, gp.z); ghost.rotation.set(0, gp.h, 0); }
+    }
+    track.rain.update(dt, camera.position, fwd.x * st.v, fwd.z * st.v);
 
     // shadows follow the car
     keyLight.position.set(st.x + 8, 16, st.z + 10);
@@ -824,5 +1024,5 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
   }
 
   // debug hook used by the automated test driver
-  return { start, stop, update, get active() { return st.active; }, get debug() { return { st, track, keys }; } };
+  return { start, stop, update, get active() { return st.active; }, get debug() { return { st, track, keys, env, setEnv }; } };
 }
