@@ -240,6 +240,7 @@ export const MODELS = [
       steer: [/^esta80_steer$/],
       gauges: { speedo: { node: [/^esta80_needle_speedo_lhd$/], max: 180, sweep: 225, zero: -125 }, tacho: { node: [/^esta80_needle_tacho_lhd$/], max: 8000, sweep: 220, zero: -115 } },
       defaults: { tint: 'clear' },   // the file's glass is tinted purple
+      eye: [-0.45, 1.16, -0.345],      // driver's head above the seat, 0.55 m behind the wheel
       paint: [/^esta80$/], glass: ['esta80_glass'], interior: ['sdd_leather'],
       credit: { title: 'Toyota Supra mk4', author: 'Black Snow', license: 'CC BY 4.0', url: 'https://sketchfab.com/3d-models/toyota-supra-mk4-8bebdee25b774067929bb33e648533ac' },
     },
