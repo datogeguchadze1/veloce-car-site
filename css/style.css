@@ -232,3 +232,29 @@ body.driving .stage { height: auto; min-height: 0 }
 }
 /* phone held upright but the browser cannot rotate: turn the stage instead */
 body.driving.forced-landscape .stage { inset: auto; top: 0; left: 0; width: 100dvh; height: 100dvw; transform-origin: 0 0; transform: translateX(100dvw) rotate(90deg) }
+
+/* track chooser */
+.track-pick { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: #05080dcc; backdrop-filter: blur(4px); padding: 14px; overflow: auto }
+.tp-box { width: min(860px, 100%); text-align: center; color: #fff }
+.tp-box h3 { margin: 0 0 14px; font-size: 1.2rem }
+.tp-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px }
+.tp-cards button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 16px 12px; border-radius: 14px; border: 1px solid #ffffff30; background: linear-gradient(160deg, #1b2230, #0f141c); color: #fff; font: inherit; cursor: pointer; transition: transform .15s, border-color .15s }
+.tp-cards button:hover { transform: translateY(-2px); border-color: #4fb3ff }
+.tp-cards button.cur { border-color: #4fb3ff; box-shadow: 0 0 0 1px #4fb3ff inset }
+.tp-ico { font-size: 2.2rem; line-height: 1 }
+.tp-cards b { font-size: 1rem }
+.tp-cards small { color: #b8c2d0; font-size: .74rem }
+.tp-cards em { font-style: normal; font-size: .78rem; margin-top: 4px; color: #ffd23f }
+.tp-cancel { margin-top: 14px; background: none; border: 1px solid #ffffff40; color: #fff; border-radius: 10px; padding: 8px 18px; font: inherit; cursor: pointer }
+@media (max-width: 640px), (max-height: 480px) {
+  .tp-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+  .tp-cards button { padding: 10px 6px }
+  .tp-ico { font-size: 1.6rem }
+  .tp-cards small:first-of-type { display: none }
+}
+@media (max-width: 420px) {
+  .tp-cards { grid-template-columns: 1fr }
+  .tp-cards button { display: grid; grid-template-columns: 44px 1fr; text-align: left; column-gap: 10px; row-gap: 2px; padding: 10px 12px }
+  .tp-ico { grid-row: span 3; align-self: center }
+}
+.records span b { margin: 2px 0 }
