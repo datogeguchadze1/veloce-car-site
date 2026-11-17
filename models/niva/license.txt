@@ -1,0 +1,11 @@
+Model Information:
+* title:	Lada Niva
+* source:	https://sketchfab.com/3d-models/lada-niva-26ebf5872bce4ff4ad2baee41882d6b2
+* author:	Greg McKechnie
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+This work is based on "Lada Niva" (https://sketchfab.com/3d-models/lada-niva-26ebf5872bce4ff4ad2baee41882d6b2) by Greg McKechnie licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
+(The download came without a licence file; this one was written from the Sketchfab page.)
