@@ -14,6 +14,20 @@ This work is based on "Mercedes-Benz 300 SL Gullwing" by Lexyc16 (https://sketch
 
 This work is based on "2010 Mercedes SLS AMG" by Dave Love SketchFab (https://sketchfab.com/Tyler_Dave), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Two overlay meshes (cracked-glass and motion-blur wheels) are hidden; colours are changed by the tuning panel.
 
+This work is based on "LADA VAZ-2103 [Zhiguli]" by Black Snow (https://sketchfab.com/BlackSnow02), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/lada-vaz-2103-zhiguli-9d02e433d9dc4b92a271a4c8641b6211. Changes: files compressed; colours are changed by the tuning panel.
+
+This work is based on "Volkswagen Golf mk1 [Tuning]" by Black Snow (https://sketchfab.com/BlackSnow02), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/volkswagen-golf-mk1-tuning-191d4905f1274cee8539a39a0a672fd9. Changes: files compressed; colours are changed by the tuning panel.
+
+This work is based on "Ferrari f40" by Black Snow (https://sketchfab.com/BlackSnow02), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/ferrari-f40-52a66c41cfcd4f999fb1b1c49bf24d70. Changes: files compressed; colours are changed by the tuning panel.
+
+This work is based on "Nissan Skyline GTR r35" by Black Snow (https://sketchfab.com/BlackSnow02), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/nissan-skyline-gtr-r35-7b142ea3376e4811a326256c59bbc7a2. Changes: files compressed; colours are changed by the tuning panel.
+
+This work is based on "Porsche GT3 RS" by Black Snow (https://sketchfab.com/BlackSnow02), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/porsche-gt3-rs-e738eae819c34d19a31dd066c45e0f3d. Changes: files compressed; an unused second tachometer needle is removed at load time; colours are changed by the tuning panel.
+
+This work is based on "2020 Ferrari Roma" by Ddiaz Design (https://sketchfab.com/ddiaz-design), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/2020-ferrari-roma-cbc0c13c0fb54fc8bbfa79a9ff99e3aa. Changes: files compressed; colours are changed by the tuning panel.
+
+This work is based on "Lamborghini Huracan Twin Turbo [LOST]" by Black Snow (https://sketchfab.com/BlackSnow02), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/lamborghini-huracan-twin-turbo-lost-1d3809ea5a6749d9864ec4c32511d716. Changes: files compressed; colours are changed by the tuning panel.
+
 ნამდვილი მოდელების დამატებისას აქ უნდა ჩაიწეროს თითოეული მათგანის მონაცემები:
 
 | მოდელი | სათაური | ავტორი | ლიცენზია | წყარო |
@@ -27,6 +41,13 @@ This work is based on "2010 Mercedes SLS AMG" by Dave Love SketchFab (https://sk
 | C 63 AMG DTM | 2018 Mercedes C-Coupé DTM | Dave Love SketchFab | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/2018-mercedes-c-coupe-dtm-5708f2acc5ef40839b6eb50970e1c173) |
 | Toyota Supra (A80) | Toyota Supra mk4 | Black Snow | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/toyota-supra-mk4-8bebdee25b774067929bb33e648533ac) |
 | BMW M3 (E36) | 1997 BMW M3 E36 | OUTPISTON | CC BY-NC-SA 4.0 | [Sketchfab](https://sketchfab.com/3d-models/1997-bmw-m3-e36-16c6f03483b24d7da3f88cd253a33cc7) |
+| ВАЗ-2103 „ჟიგული“ | LADA VAZ-2103 [Zhiguli] | Black Snow | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/lada-vaz-2103-zhiguli-9d02e433d9dc4b92a271a4c8641b6211) |
+| VW Golf GTI (Mk1) | Volkswagen Golf mk1 [Tuning] | Black Snow | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/volkswagen-golf-mk1-tuning-191d4905f1274cee8539a39a0a672fd9) |
+| Ferrari F40 | Ferrari f40 | Black Snow | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/ferrari-f40-52a66c41cfcd4f999fb1b1c49bf24d70) |
+| Nissan GT-R (R35) | Nissan Skyline GTR r35 | Black Snow | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/nissan-skyline-gtr-r35-7b142ea3376e4811a326256c59bbc7a2) |
+| Porsche 911 GT3 RS (992) | Porsche GT3 RS | Black Snow | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/porsche-gt3-rs-e738eae819c34d19a31dd066c45e0f3d) |
+| Ferrari Roma | 2020 Ferrari Roma | Ddiaz Design | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/2020-ferrari-roma-cbc0c13c0fb54fc8bbfa79a9ff99e3aa) |
+| Lamborghini Huracán | Lamborghini Huracan Twin Turbo [LOST] | Black Snow | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/lamborghini-huracan-twin-turbo-lost-1d3809ea5a6749d9864ec4c32511d716) |
 
 ## Disclaimer
-არაოფიციალური სასწავლო პროექტი. არ არის დაკავშირებული Mercedes-Benz Group AG-თან. Mercedes-Benz და ვარსკვლავის ლოგო მათი სავაჭრო ნიშნებია.
+არაოფიციალური სასწავლო პროექტი. არ არის დაკავშირებული არცერთ მწარმოებელთან (Mercedes-Benz, Toyota, BMW, Ferrari, Lamborghini, Porsche, Nissan, Volkswagen, Lada, Audi). მარკები და ლოგოები მათი მფლობელების სავაჭრო ნიშნებია.
