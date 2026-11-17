@@ -242,12 +242,133 @@ CABINS.amggt = k => {
   return { eye: [-0.58, 1.0, DRV], noTrim: true };
 };
 
+// Digital instrument face (Audi "virtual cockpit" style): thin coloured arc, numbers, dark glass.
+function digitalDialTexture({ max, step, label, redFrom = null, accent = '#e8202a' }) {
+  return canvasTex(256, 256, g => {
+    const gr = g.createRadialGradient(128, 128, 20, 128, 128, 128);
+    gr.addColorStop(0, '#1a1d22'); gr.addColorStop(1, '#050608');
+    g.fillStyle = gr; g.beginPath(); g.arc(128, 128, 127, 0, 7); g.fill();
+    g.lineWidth = 7; g.strokeStyle = '#2a2f37';
+    g.beginPath(); g.arc(128, 128, 110, DIAL_A0 - Math.PI / 2, DIAL_A0 + DIAL_SWEEP - Math.PI / 2); g.stroke();
+    if (redFrom != null) { g.strokeStyle = accent; g.beginPath(); g.arc(128, 128, 110, DIAL_A0 + DIAL_SWEEP * redFrom / max - Math.PI / 2, DIAL_A0 + DIAL_SWEEP - Math.PI / 2); g.stroke(); }
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '600 19px Arial, sans-serif';
+    for (let v = 0; v <= max + 1e-6; v += step) {
+      const th = DIAL_A0 + DIAL_SWEEP * v / max, sx = Math.sin(th), cy = -Math.cos(th);
+      g.strokeStyle = '#d9dde3'; g.lineWidth = 3; g.beginPath(); g.moveTo(128 + sx * 96, 128 + cy * 96); g.lineTo(128 + sx * 106, 128 + cy * 106); g.stroke();
+      g.fillStyle = redFrom != null && v >= redFrom ? accent : '#e9edf2'; g.fillText(String(Math.round(v)), 128 + sx * 76, 128 + cy * 76);
+    }
+    g.fillStyle = '#8d96a3'; g.font = '14px Arial, sans-serif'; g.fillText(label, 128, 180);
+  });
+}
+
+// Audi R8 (4S): the file's cabin is a flat black lid. Black leather sport seats with
+// red inserts, a "monoposto" arc around the driver, virtual-cockpit dials, flat-bottom wheel.
+CABINS.r8 = k => {
+  const m = k.mats, FLOOR = 0.14, DRV = -0.43;
+  m.leather.color.set(0x7d1418); m.leatherPlain.color.set(0x5a0f12); m.carpet.color.set(0x1a1a1c);
+  const carbon = new THREE.MeshStandardMaterial({ color: 0x1a1b1e, roughness: 0.25, metalness: 0.4 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x1c1c1e, roughness: 0.55 });   // dash and door leather: stays black whatever the seat colour
+  // tub
+  k.box([1.75, 0.03, 1.46], m.carpet, [0.1, FLOOR, 0]);
+  k.box([0.04, 0.62, 1.42], m.dark, [0.96, 0.44, 0]);
+  k.box([0.45, 0.02, 1.3], m.carpet, [0.82, 0.24, 0], [0, 0, -0.45]);                      // toe board
+  k.box([0.04, 0.74, 1.44], trim, [-0.64, 0.51, 0]);                               // bulkhead to the engine bay
+  for (const s of [1, -1]) {
+    k.profile([[0.95, FLOOR], [0.95, 0.42], [-0.62, 0.42], [-0.62, FLOOR]], s > 0 ? 0.6 : -0.76, s > 0 ? 0.76 : -0.6, trim, 0.02);   // sills
+    k.box([1.25, 0.34, 0.02], trim, [0.12, 0.62, s * 0.74]);                       // door card
+    k.box([0.42, 0.05, 0.08], m.leatherPlain, [0.05, 0.6, s * 0.7]);                          // armrest
+    k.box([0.5, 0.012, 0.012], m.alu, [0.12, 0.74, s * 0.728]);                               // aluminium strip
+    k.box([0.08, 0.035, 0.02], m.alu, [0.42, 0.7, s * 0.725]);                                // door release
+  }
+  // centre console, rising to the dashboard
+  k.profile([[0.92, FLOOR], [0.92, 0.66], [0.55, 0.64], [0.1, 0.5], [-0.6, 0.5], [-0.6, FLOOR]], -0.13, 0.13, carbon, 0.02);
+  k.profile([[0.55, 0.645], [0.1, 0.505], [-0.6, 0.505], [-0.6, 0.51], [0.1, 0.512], [0.55, 0.652]], -0.11, 0.11, m.leatherPlain, 0.004);
+  k.box([0.006, 0.08, 0.2], m.gloss, [0.6, 0.6, 0], [0, 0, 0.75]);                         // climate panel
+  for (const z of [-0.06, 0, 0.06]) k.cyl(0.018, 0.02, 'x', m.alu, [0.585, 0.585, z]).rotation.z = 0.75;
+  k.box([0.09, 0.03, 0.06], m.gloss, [0.12, 0.52, 0]);                                       // gear selector
+  k.box([0.03, 0.06, 0.03], m.alu, [0.12, 0.56, 0]);
+  k.box([0.05, 0.01, 0.03], m.needle, [0.2, 0.513, 0.05]);                                  // start button glow
+  // dashboard and the arc that wraps the driver
+  k.profile([[0.42, 0.52], [0.37, 0.7], [0.43, 0.79], [0.9, 0.83], [0.97, 0.6]], -0.74, 0.74, trim, 0.02);
+  k.profile([[0.355, 0.945], [0.365, 0.962], [0.52, 0.968], [0.66, 0.86], [0.64, 0.845], [0.5, 0.948]], DRV - 0.21, DRV + 0.21, trim, 0.008, true);   // hood over the dials
+  const arc = new THREE.TorusGeometry(0.33, 0.012, 8, 40, Math.PI * 0.85); arc.rotateZ(Math.PI * 0.08); arc.rotateY(Math.PI / 2);
+  k.add(arc, m.alu).position.set(0.42, 0.52, DRV + 0.05);
+  // virtual cockpit: a dark glass panel with two round dials
+  const vc = new THREE.Group(); vc.position.set(0.385, 0.875, DRV); vc.rotation.z = -0.22; k.group.add(vc);
+  k.add(new THREE.BoxGeometry(0.012, 0.13, 0.33), m.gloss, vc);
+  const face = new THREE.MeshBasicMaterial({ color: 0x0b1018 }); const fp = new THREE.PlaneGeometry(0.31, 0.115); fp.rotateY(-Math.PI / 2); k.add(fp, face, vc).position.x = -0.007;
+  k.dial({ pos: [0.378, 0.876, DRV - 0.085], r: 0.05, tilt: 0.22, kind: 'speedo', max: 340, bezel: m.gloss, texture: digitalDialTexture({ max: 340, step: 40, label: 'km/h' }) });
+  k.dial({ pos: [0.378, 0.876, DRV + 0.085], r: 0.05, tilt: 0.22, kind: 'tacho', max: 9000, bezel: m.gloss, texture: digitalDialTexture({ max: 9, step: 1, label: '1/min x1000', redFrom: 8.5 }) });
+  for (const z of [-0.62, -0.18, 0.18, 0.62]) { const v = k.cyl(0.032, 0.02, 'x', m.alu, [0.42, 0.74, z]); v.rotation.z = Math.PI / 2 - 0.3; k.cyl(0.024, 0.022, 'x', m.dark, [0.418, 0.74, z]).rotation.z = Math.PI / 2 - 0.3; }
+  // flat-bottomed three-spoke wheel
+  k.wheel({ pos: [0.28, 0.75, DRV], tilt: 0.38, r: 0.183, rim: trim, rimTube: 0.016, spokes: [Math.PI / 2, -Math.PI / 2, Math.PI], spokeMat: m.alu, spokeW: 0.03, hub: trim, hubR: 0.065, column: 0.16 });
+  // sport seats and headliner
+  for (const z of [DRV, -DRV]) {
+    k.seat({ z, x0: 0.17, x1: -0.3, yTop: 0.37, backTop: 1.02, width: 0.5, rake: 0.13, floor: FLOOR });
+    k.box([0.05, 0.13, 0.1], m.alu, [-0.44, 0.88, z]);                                        // headrest badge
+  }
+  return { eye: [-0.27, 1.04, DRV], light: [-0.1, 0.95, 0] };
+};
+
+// Porsche 911 Turbo (930): the file's cabin is a black lid with silhouettes. Tan leather,
+// five round dials across a black dash, four-spoke wheel, 2+2 rear seats, long gear lever.
+CABINS['930'] = k => {
+  const m = k.mats, FLOOR = 0.3, DRV = -0.33;
+  m.leather.color.set(0x8a5a33); m.leatherPlain.color.set(0x7a4f2d); m.carpet.color.set(0x3b2a1e); m.headliner.color.set(0x2a2a2c);
+  const vinyl = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.6 });
+  // tub
+  k.box([2.0, 0.03, 1.26], m.carpet, [-0.25, FLOOR, 0]);
+  k.box([0.04, 0.7, 1.24], vinyl, [0.8, 0.63, 0]);
+  k.box([0.4, 0.02, 1.1], m.carpet, [0.66, 0.42, 0], [0, 0, -0.5]);
+  k.box([0.04, 0.6, 1.24], m.carpet, [-1.3, 0.62, 0]);                                       // behind the rear seats
+  k.profile([[0.8, FLOOR], [0.8, 0.44], [-0.6, 0.42], [-0.6, FLOOR]], -0.09, 0.09, m.carpet, 0.02);   // tunnel
+  for (const s of [1, -1]) {
+    k.profile([[0.8, FLOOR], [0.8, 0.5], [-1.3, 0.5], [-1.3, FLOOR]], s > 0 ? 0.5 : -0.64, s > 0 ? 0.64 : -0.5, m.carpet, 0.02);
+    k.box([1.15, 0.4, 0.02], m.leatherPlain, [0.08, 0.72, s * 0.615]);                       // door card
+    k.box([0.5, 0.12, 0.03], vinyl, [0.1, 0.6, s * 0.6]);                                     // map pocket
+    k.cyl(0.009, 0.16, 'x', m.chrome, [0.38, 0.84, s * 0.6]);                                 // door pull
+    k.box([0.5, 0.3, 0.02], m.leatherPlain, [-0.95, 0.75, s * 0.6]);                          // rear side trim
+  }
+  // dashboard, padded top, instrument hood
+  k.profile([[0.5, 0.66], [0.44, 0.87], [0.49, 0.99], [0.79, 1.03], [0.79, 0.66]], -0.62, 0.62, vinyl, 0.02);
+  k.cyl(0.03, 1.22, 'z', vinyl, [0.46, 0.66, 0]);
+  k.profile([[0.41, 1.01], [0.42, 1.04], [0.56, 1.06], [0.62, 1.02]], DRV - 0.31, DRV + 0.31, vinyl, 0.012, true);
+  const FX = 0.428, face = { face: '#07070a', ink: '#f2f1ea' };
+  k.dial({ pos: [FX, 0.935, DRV], r: 0.062, tilt: 0.18, kind: 'tacho', max: 8000, bezel: vinyl, texture: dialTexture({ max: 8, step: 1, label: 'U/min x1000', redFrom: 6.8, ...face }) });
+  k.dial({ pos: [FX, 0.930, DRV + 0.135], r: 0.055, tilt: 0.18, kind: 'speedo', max: 300, bezel: vinyl, texture: dialTexture({ max: 300, step: 40, label: 'km/h', ...face }) });
+  k.dial({ pos: [FX, 0.930, DRV - 0.135], r: 0.055, tilt: 0.18, bezel: vinyl, texture: dialTexture({ max: 150, step: 30, label: 'ÖL °C', ...face }) });
+  k.dial({ pos: [FX, 0.925, DRV + 0.26], r: 0.048, tilt: 0.18, bezel: vinyl, texture: dialTexture({ max: 12, step: 3, label: 'KIENZLE', minor: 3, ...face }) });
+  k.dial({ pos: [FX, 0.925, DRV - 0.26], r: 0.048, tilt: 0.18, bezel: vinyl, texture: miniDialTexture('R', '1', 'BENZIN') });
+  k.box([0.01, 0.06, 0.18], m.gloss, [0.452, 0.78, 0.12]);                                  // radio
+  for (let i = 0; i < 4; i++) k.cyl(0.008, 0.02, 'x', m.chrome, [0.445, 0.78, 0.05 + i * 0.045]);
+  for (const z of [-0.5, 0.0, 0.5]) k.box([0.012, 0.035, 0.1], m.dark, [0.47, 0.95, z]);   // vents
+  k.box([0.004, 0.006, 0.26], m.chrome, [0.445, 0.86, 0.42]);                               // glovebox line
+  // four-spoke wheel with a gold crest
+  k.wheel({ pos: [0.26, 0.8, DRV], tilt: 0.34, r: 0.19, rim: m.dark, rimTube: 0.016, spokes: [Math.PI / 3, -Math.PI / 3, Math.PI * 2 / 3, -Math.PI * 2 / 3], spokeMat: m.dark, spokeW: 0.035, hub: m.dark, hubR: 0.07, column: 0.2 });
+  const crest = new THREE.CircleGeometry(0.022, 20); crest.rotateY(-Math.PI / 2); crest.translate(-0.014, 0, 0);
+  k.add(crest, new THREE.MeshStandardMaterial({ color: 0xc9a24a, metalness: 0.9, roughness: 0.3 }), k.steer);
+  // seats: two buckets with high backs, and a small 2+2 rear bench
+  for (const z of [DRV, -DRV]) k.seat({ z, x0: 0.12, x1: -0.36, yTop: 0.55, backTop: 1.16, width: 0.47, rake: 0.18, floor: FLOOR });
+  for (const z of [-0.3, 0.3]) {
+    k.profile([[-0.75, 0.42], [-0.75, 0.53], [-1.05, 0.5], [-1.05, 0.42]], z - 0.22, z + 0.22, m.leather, 0.03);
+    k.profile([[-1.03, 0.5], [-1.02, 0.56], [-1.2, 0.92], [-1.26, 0.9], [-1.1, 0.5]], z - 0.22, z + 0.22, m.leather, 0.03);
+  }
+  // gear lever, handbrake, pedals, headliner
+  const lever = k.cyl(0.007, 0.32, 'y', m.chrome, [0.25, 0.58, 0]); lever.rotation.z = 0.25;
+  const knob = k.add(new THREE.SphereGeometry(0.024, 16, 12), m.dark); knob.position.set(0.21, 0.74, 0);
+  k.box([0.2, 0.02, 0.02], m.dark, [-0.05, 0.47, 0.06], [0, 0, 0.3]);
+  for (const [pz, w] of [[-0.43, 0.06], [-0.33, 0.06], [-0.22, 0.05]]) k.box([0.02, 0.08, w], m.alu, [0.62, 0.46, pz], [0, 0, -0.5]);
+  k.profile([[0.25, 1.355], [0.25, 1.365], [-0.3, 1.38], [-0.85, 1.315], [-0.85, 1.305], [-0.3, 1.37]], -0.56, 0.56, m.headliner, 0.002);
+  return { eye: [-0.28, 1.19, DRV], light: [-0.2, 1.1, 0] };
+};
+
 // Builds the cabin named by `name` into `body`. `paint` is the car's paint material.
 export function buildCabin(name, body, paint) {
   const recipe = CABINS[name];
   if (!recipe) return null;
   const kit = createKit(paint);
   const info = recipe(kit) || {};
+  if (info.light) { const l = new THREE.PointLight(0xfff3e0, 0.9, 2.2, 1.5); l.position.set(...info.light); kit.group.add(l); }
   body.add(kit.group);
   const turn = (n, value) => { if (n) n.pivot.rotation.x = DIAL_A0 + DIAL_SWEEP * Math.min(1, Math.max(0, value / n.max)); };
   return {

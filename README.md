@@ -1,6 +1,6 @@
 # VELOCE Garage: 3D ავტო-კატალოგი
 
-ინტერაქტიული 3D კატალოგი ნამდვილი მანქანების მოდელებით (Mercedes-Benz, Toyota, BMW, Ferrari, Porsche, Lamborghini, Nissan, Volkswagen, Lada). აირჩიე მანქანა დროის ხაზიდან, დაატრიალე, შეიხედე სალონში, დაატიუნინგე და გაიარე ტესტ-დრაივი.
+ინტერაქტიული 3D კატალოგი ნამდვილი მანქანების მოდელებით (Mercedes-Benz, Toyota, BMW, Ferrari, Porsche, Lamborghini, Nissan, Volkswagen, Lada, Audi). აირჩიე მანქანა დროის ხაზიდან, დაატრიალე, შეიხედე სალონში, დაატიუნინგე და გაიარე ტესტ-დრაივი.
 
 ![VELOCE Garage](docs/preview.png)
 

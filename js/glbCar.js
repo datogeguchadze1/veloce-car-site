@@ -75,6 +75,23 @@ function stripPieces(mesh, toBody, box) {
   mesh.geometry.setIndex(keep);
 }
 
+// Removes every triangle whose three corners lie inside `box` (car coordinates).
+// For placeholder geometry that is welded to the body, where whole pieces cannot go.
+function stripTriangles(mesh, toBody, box) {
+  const geo = mesh.geometry, pos = geo.attributes.position, idx = geo.index;
+  const M = new THREE.Matrix4().multiplyMatrices(toBody, mesh.matrixWorld), v = new THREE.Vector3();
+  const inside = new Uint8Array(pos.count);
+  for (let i = 0; i < pos.count; i++) inside[i] = box.containsPoint(v.fromBufferAttribute(pos, i).applyMatrix4(M)) ? 1 : 0;
+  const n = idx ? idx.count : pos.count, at = i => (idx ? idx.getX(i) : i), keep = [];
+  let cut = 0;
+  for (let t = 0; t < n; t += 3) {
+    const a = at(t), b = at(t + 1), c = at(t + 2);
+    if (inside[a] && inside[b] && inside[c]) { cut++; continue; }
+    keep.push(a, b, c);
+  }
+  if (cut) geo.setIndex(keep);
+}
+
 // Splits pieces of a merged mesh into meshes of their own, one per rule, so
 // they can have their own material or move. A rule takes every piece whose
 // bounding box lies inside one of its boxes (first matching rule wins).
@@ -151,24 +168,43 @@ export async function loadGlbCar(m, onProgress) {
   } else holder.rotation.y = cfg.rotY;
 
   /* ---------- scale, centre, put wheels on the ground ---------- */
+  // boxOf(pats): box of the meshes using those materials (all meshes when no pattern is given)
+  const boxOf = pats => {
+    const list = toList(pats), b = new THREE.Box3();
+    if (!list.length) return b.setFromObject(holder);
+    model.traverse(o => { if (o.isMesh && toList(o.material).some(mt => list.some(p => matches(mt.name, p)))) b.union(new THREE.Box3().setFromObject(o)); });
+    return b.isEmpty() ? b.setFromObject(holder) : b;
+  };
+  // fit: materials that outline the car (helper objects in some files make the whole-file box too big)
   holder.updateMatrixWorld(true);
-  let box = new THREE.Box3().setFromObject(holder);
+  let box = boxOf(cfg.fit);
   const rawLen = box.max.x - box.min.x;
   const s = cfg.scale && cfg.scale !== 'auto' ? cfg.scale : m.dims.L / rawLen;
   holder.scale.setScalar(s);
   holder.updateMatrixWorld(true);
-  box = new THREE.Box3().setFromObject(holder);
+  box = boxOf(cfg.fit);
   // ground: the tyres decide where the floor is (parts hanging lower, like a long exhaust, must not lift the car)
-  let floorY = box.min.y;
-  if (cfg.ground) {
-    const gb = new THREE.Box3();
-    model.traverse(o => { if (o.isMesh && toList(o.material).some(mt => toList(cfg.ground).some(p => matches(mt.name, p)))) gb.union(new THREE.Box3().setFromObject(o)); });
-    if (!gb.isEmpty()) floorY = gb.min.y;
-  }
+  const floorY = cfg.ground ? boxOf(cfg.ground).min.y : box.min.y;
   holder.position.set(-(box.min.x + box.max.x) / 2, -floorY, -(box.min.z + box.max.z) / 2);
   holder.updateMatrixWorld(true);
-  box = new THREE.Box3().setFromObject(holder);
+  box = boxOf(cfg.fit);
   const size = box.getSize(new THREE.Vector3());
+
+  // mirror: replace a part that is modelled wrongly (e.g. a door left open in the file) with a
+  // mirror image of its counterpart across the car's centre plane. The copy is named "<source>_mirror".
+  for (const md of toList(cfg.mirror)) {
+    findNodes(model, md.hide).forEach(o => o.parent && o.parent.remove(o));
+    body.updateMatrixWorld(true);
+    const flip = new THREE.Matrix4().makeScale(1, 1, -1), toBody = body.matrixWorld.clone().invert();
+    findNodes(model, md.source).forEach(src => {
+      const c = src.clone(true); c.name = src.name + '_mirror';
+      const W = body.matrixWorld.clone().multiply(flip).multiply(toBody).multiply(src.matrixWorld);
+      src.parent.add(c);
+      c.matrix.copy(src.parent.matrixWorld.clone().invert().multiply(W));
+      c.matrix.decompose(c.position, c.quaternion, c.scale);
+    });
+    holder.updateMatrixWorld(true);
+  }
 
   /* ---------- meshes, materials ---------- */
   const meshes = [];
@@ -252,7 +288,7 @@ export async function loadGlbCar(m, onProgress) {
     body.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
     for (const st of toList(cfg.strip)) {
-      meshes.forEach(o => { if (toList(o.material).some(mt => matches(mt.name, st.material))) stripPieces(o, inv, box6(st.box)); });
+      meshes.forEach(o => { if (toList(o.material).some(mt => matches(mt.name, st.material))) (st.triangles ? stripTriangles : stripPieces)(o, inv, box6(st.box)); });
     }
     if (cfg.cabin) {
       cabin = buildCabin(cfg.cabin, body, paint[0]);

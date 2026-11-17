@@ -28,6 +28,16 @@ This work is based on "2020 Ferrari Roma" by Ddiaz Design (https://sketchfab.com
 
 This work is based on "Lamborghini Huracan Twin Turbo [LOST]" by Black Snow (https://sketchfab.com/BlackSnow02), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/lamborghini-huracan-twin-turbo-lost-1d3809ea5a6749d9864ec4c32511d716. Changes: files compressed; colours are changed by the tuning panel.
 
+This work is based on "Audi R8" by wallon, licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/audi-r8-e17e438f076f4427a58d93aa779edaed. Changes: files compressed; the placeholder cabin (a flat black lid at window height and a bare steering-wheel hoop) is cut out at load time and replaced by a cabin built in code (js/cabinKit.js); colours are changed by the tuning panel.
+
+This work is based on "FREE 1975 Porsche 911 (930) Turbo" by Lionsharp Studios, licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/free-1975-porsche-911-930-turbo-8568d9d14a994b9cae59499f0dbed21e. Changes: unpacked from .glb and compressed; the ground plane is hidden; the placeholder cabin (a black lid with seat and wheel silhouettes) is cut out at load time and replaced by a cabin built in code (js/cabinKit.js); colours are changed by the tuning panel.
+
+This work is based on "Lada Niva" by Greg McKechnie, licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/lada-niva-26ebf5872bce4ff4ad2baee41882d6b2. Changes: converted from USDZ to glTF (three.js USDLoader + GLTFExporter, duplicate textures merged) and compressed; colours are changed by the tuning panel.
+
+This work is based on "Toyota AE86 Sprinter Trueno Zenki" by Martin Trafas, licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/toyota-ae86-sprinter-trueno-zenki-a5737bf3cc9b4179a6e5ebe173ff70d9. Changes: converted from USDZ to glTF and compressed; colours are changed by the tuning panel.
+
+This work is based on "Porsche 911 with interior" by n.brizitskaya, licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/porsche-911-with-interior-877b1bc1739f4a2bb65d62fd7ffd9f75. Changes: converted from USDZ to glTF and compressed; the driver's door, modelled standing open, is replaced at load time by a mirror image of the closed passenger door; colours are changed by the tuning panel.
+
 ნამდვილი მოდელების დამატებისას აქ უნდა ჩაიწეროს თითოეული მათგანის მონაცემები:
 
 | მოდელი | სათაური | ავტორი | ლიცენზია | წყარო |
@@ -48,6 +58,11 @@ This work is based on "Lamborghini Huracan Twin Turbo [LOST]" by Black Snow (htt
 | Porsche 911 GT3 RS (992) | Porsche GT3 RS | Black Snow | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/porsche-gt3-rs-e738eae819c34d19a31dd066c45e0f3d) |
 | Ferrari Roma | 2020 Ferrari Roma | Ddiaz Design | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/2020-ferrari-roma-cbc0c13c0fb54fc8bbfa79a9ff99e3aa) |
 | Lamborghini Huracán | Lamborghini Huracan Twin Turbo [LOST] | Black Snow | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/lamborghini-huracan-twin-turbo-lost-1d3809ea5a6749d9864ec4c32511d716) |
+| Audi R8 V10 (4S) | Audi R8 | wallon | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/audi-r8-e17e438f076f4427a58d93aa779edaed) |
+| Porsche 911 Turbo (930) | FREE 1975 Porsche 911 (930) Turbo | Lionsharp Studios | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/free-1975-porsche-911-930-turbo-8568d9d14a994b9cae59499f0dbed21e) |
+| Lada Niva (ВАЗ-2121) | Lada Niva | Greg McKechnie | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/lada-niva-26ebf5872bce4ff4ad2baee41882d6b2) |
+| Toyota Sprinter Trueno (AE86) | Toyota AE86 Sprinter Trueno Zenki | Martin Trafas | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/toyota-ae86-sprinter-trueno-zenki-a5737bf3cc9b4179a6e5ebe173ff70d9) |
+| Porsche 911 Turbo S (992) | Porsche 911 with interior | n.brizitskaya | CC BY 4.0 | [Sketchfab](https://sketchfab.com/3d-models/porsche-911-with-interior-877b1bc1739f4a2bb65d62fd7ffd9f75) |
 
 ## Disclaimer
 არაოფიციალური სასწავლო პროექტი. არ არის დაკავშირებული არცერთ მწარმოებელთან (Mercedes-Benz, Toyota, BMW, Ferrari, Lamborghini, Porsche, Nissan, Volkswagen, Lada, Audi). მარკები და ლოგოები მათი მფლობელების სავაჭრო ნიშნებია.
