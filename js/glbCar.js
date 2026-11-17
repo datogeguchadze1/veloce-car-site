@@ -158,7 +158,14 @@ export async function loadGlbCar(m, onProgress) {
   holder.scale.setScalar(s);
   holder.updateMatrixWorld(true);
   box = new THREE.Box3().setFromObject(holder);
-  holder.position.set(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);
+  // ground: the tyres decide where the floor is (parts hanging lower, like a long exhaust, must not lift the car)
+  let floorY = box.min.y;
+  if (cfg.ground) {
+    const gb = new THREE.Box3();
+    model.traverse(o => { if (o.isMesh && toList(o.material).some(mt => toList(cfg.ground).some(p => matches(mt.name, p)))) gb.union(new THREE.Box3().setFromObject(o)); });
+    if (!gb.isEmpty()) floorY = gb.min.y;
+  }
+  holder.position.set(-(box.min.x + box.max.x) / 2, -floorY, -(box.min.z + box.max.z) / 2);
   holder.updateMatrixWorld(true);
   box = new THREE.Box3().setFromObject(holder);
   const size = box.getSize(new THREE.Vector3());
