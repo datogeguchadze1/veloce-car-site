@@ -69,6 +69,7 @@ export const MODELS = [
     wheel: { r: 0.34, x: [1.37, -1.31] },
     glb: {
       file: 'models/sls/scene.gltf',
+      steerBox: [-0.24, 0.55, -0.66, -0.02, 0.98, -0.18],   // the steering wheel: every piece inside this box turns
       rotY: Math.PI / 2,
       // hide the cracked-glass overlay and the motion-blur wheel shells
       remove: ['Object_52', 'Object_7', 'Object_8'],
@@ -160,6 +161,7 @@ export const MODELS = [
     wheel: { r: 0.35, x: [1.45, -1.49] },
     glb: {
       file: 'models/e63/scene.gltf',
+      steerBox: [0.36, 0.7, -0.68, 0.62, 1.16, -0.26],   // the steering wheel: every piece inside this box turns
       rotY: -Math.PI / 2,
       credit: { title: 'Mercedes-AMG E 63 S (W213)', author: 'Mona x Supercars', license: 'CC BY 4.0', url: 'https://sketchfab.com/3d-models/mercedes-amg-e-63-s-w213-f61d8efb0b9b4c499fc66fcf35a4d09c' },
     },
@@ -212,6 +214,7 @@ export const MODELS = [
     wheel: { r: 0.34, x: [1.4, -1.35] },
     glb: {
       file: 'models/dtm/scene.gltf',
+      steerBox: [0.08, 0.52, -0.42, 0.28, 0.88, 0.0],   // the steering wheel: every piece inside this box turns
       hideMaterials: [/Blur/, /DAMAGE/],
       paint: ['EXT_CarPaint'], glass: ['EXT_Windows.005'], rimMaterials: ['EXT_Rims'],
       eye: [-0.35, 0.95, -0.3],
@@ -415,6 +418,7 @@ export const MODELS = [
     wheel: { r: 0.35, x: [1.45, -1.22] },
     glb: {
       file: 'models/roma/scene.gltf',
+      steerBox: [-0.12, 0.6, -0.58, 0.14, 0.99, -0.17],   // the steering wheel: every piece inside this box turns
       eye: [-0.6, 1.05, -0.4],
       paint: [/Paint_Material$/], glass: [/Window_Material$/], interior: [/InteriorTillingColourZoneA_Material$/],
       credit: { title: '2020 Ferrari Roma', author: 'Ddiaz Design', license: 'CC BY 4.0', url: 'https://sketchfab.com/3d-models/2020-ferrari-roma-cbc0c13c0fb54fc8bbfa79a9ff99e3aa' },

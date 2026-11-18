@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createEngineSound, engineSpec } from './engineSound.js';
+import { createDriver } from './driver.js';
+import { makeSky, makeClouds, makeHorizon, asphaltTexture, grassTexture, circuitDetails, circuitWallTexture, cityDetails, cityBlockExtras, mountainDetails, roundTrees } from './scenery.js';
 
 /* ---------- deterministic random (same scenery every visit) ---------- */
 function rng(seed) {
@@ -127,14 +129,8 @@ function buildTrack(id = 'circuit') {
   }
 
   // road
-  const asphalt = canvasTex(256, 512, (g, w, h) => {
-    noise(g, w, h, '#3a3c41', 60, 9000, rand);
-    g.fillStyle = '#f2f2f2';
-    if (!city) { g.fillRect(w * 0.035, 0, w * 0.025, h); g.fillRect(w * 0.94, 0, w * 0.025, h); }   // edge lines
-    g.fillStyle = city ? '#e8d24a' : '#f2f2f2';
-    g.fillRect(w * 0.49, 0, w * 0.02, h * 0.45);       // dashed centre line
-  });
-  const road = ribbon(ROAD_W / 2, -ROAD_W / 2, 0.04, 1, 14, new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.85, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  const asphalt = asphaltTexture(id, rand);
+  const road = ribbon(ROAD_W / 2, -ROAD_W / 2, 0.04, 1, 14, new THREE.MeshStandardMaterial({ map: asphalt, bumpMap: asphalt, bumpScale: 0.35, roughness: 0.88, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
 
   // run-off: plain asphalt (circuit), pavement (city) or gravel shoulder (mountain)
   const runTex = city
@@ -183,6 +179,9 @@ function buildTrack(id = 'circuit') {
     return { d: Math.sqrt(bd), i: bi };
   };
   const near = (x, z, min) => nearest(x, z, 3).d < min;
+  const keepOut = [];                                   // round areas where nothing may grow (pit building …)
+  const blocked = (x, z) => keepOut.some(k => Math.hypot(k.x - x, k.z - z) < k.r);
+  if (circuit) circuitDetails({ group, center, tangents, nrm, N, WALL, ROAD_W, rand, keepOut });
 
   // ground: grass (circuit), concrete (city) or a mountain heightfield the road is cut into
   let heightAt = () => 0;
@@ -223,7 +222,7 @@ function buildTrack(id = 'circuit') {
   } else {
     const groundTex = city
       ? canvasTex(256, 256, (g, w, h) => noise(g, w, h, '#55585d', 50, 6000, rand), [300, 300])
-      : canvasTex(256, 256, (g, w, h) => noise(g, w, h, '#4d7a3a', 70, 7000, rand), [260, 260]);
+      : grassTexture(rand);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(2600, 2600), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1 }));
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -267,11 +266,11 @@ function buildTrack(id = 'circuit') {
   // trees (instanced), kept clear of the track
   if (!city) {
     const spots = [];
-    const count = mountain ? 650 : 420;
+    const count = mountain ? 650 : 240;
     for (let tries = 0; spots.length < count && tries < 9000; tries++) {
       const x = mountain ? (rand() - 0.5) * 1100 + 40 : (rand() - 0.5) * 900 + 25;
       const z = mountain ? (rand() - 0.5) * 900 - 140 : (rand() - 0.5) * 700 - 85;
-      if (near(x, z, WALL + (mountain ? 5 : 6))) continue;
+      if (near(x, z, WALL + (mountain ? 5 : 6)) || blocked(x, z)) continue;
       spots.push([x, heightAt(x, z), z, 0.7 + rand() * 0.8]);
     }
     const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25, 0.35, 3, 6), new THREE.MeshStandardMaterial({ color: 0x5b3b22, roughness: 1 }), spots.length);
@@ -283,15 +282,25 @@ function buildTrack(id = 'circuit') {
     });
     trunk.castShadow = crown.castShadow = true;
     group.add(trunk, crown);
+    if (circuit) {              // broad-leaf trees and bushes between the conifers
+      const round = [];
+      for (let tries = 0; round.length < 260 && tries < 6000; tries++) {
+        const x = (rand() - 0.5) * 900 + 25, z = (rand() - 0.5) * 700 - 85;
+        if (near(x, z, WALL + 5) || blocked(x, z)) continue;
+        round.push([new THREE.Vector3(x, 0, z), 0.55 + rand() * 0.9]);
+      }
+      roundTrees(round, rand).forEach(m => group.add(m));
+    }
   }
 
   // city blocks: boxes along both sides of every street, with windows that light up at night
   let windows = [];
+  const placed = [];
   if (city) {
     const tex = facadeTextures(rand);
     const tints = [0xffffff, 0xe6d3bd, 0xc9d4de, 0xd8c4c0];
     const parts = tints.map(() => []);
-    const placed = [];
+    const blockList = [];
     for (let i = 0; i < N; i += 7) {
       for (const s of [1, -1]) {
         const c = center[i], [nx, nz] = nrm[i], t = tangents[i];
@@ -323,6 +332,7 @@ function buildTrack(id = 'circuit') {
         }
         g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, c.y + h / 2, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(-t.z, t.x)), new THREE.Vector3(1, 1, 1)));
         parts[Math.floor(rand() * tints.length)].push(g);
+        blockList.push({ x, z, y: c.y, w, h, d, yaw: Math.atan2(-t.z, t.x) });
       }
     }
     parts.forEach((list, k) => {
@@ -334,6 +344,10 @@ function buildTrack(id = 'circuit') {
       group.add(mesh);
       windows.push(mat);
     });
+    const extra = cityBlockExtras(blockList, rand);
+    extra.meshes.forEach(m => group.add(m));
+    windows.push(...extra.nightMats);
+    cityDetails({ group, center, tangents, nrm, N, WALL, ROAD_W, rand, nearest, placed });
   }
 
   const hemi = new THREE.HemisphereLight(0xcfe4ff, city ? 0x6a6d72 : mountain ? 0x56704a : 0x4d7a3a, 0.9);
@@ -374,7 +388,7 @@ function buildTrack(id = 'circuit') {
   const wallTex = city
     ? canvasTex(128, 32, (g) => { g.fillStyle = '#c4c6c9'; g.fillRect(0, 0, 128, 32); g.fillStyle = '#2f6fb3'; g.fillRect(0, 9, 128, 7); g.fillStyle = '#ffffff'; g.fillRect(0, 16, 128, 3); })
     : mountain ? canvasTex(64, 16, (g) => { g.fillStyle = '#b9bfc6'; g.fillRect(0, 0, 64, 16); g.fillStyle = '#d8dde2'; g.fillRect(0, 4, 64, 3); g.fillStyle = '#8d939a'; g.fillRect(0, 11, 64, 2); })
-      : canvasTex(128, 16, (g) => { g.fillStyle = '#d42a2a'; g.fillRect(0, 0, 64, 16); g.fillStyle = '#eeeeee'; g.fillRect(64, 0, 64, 16); });
+      : circuitWallTexture();
   const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: mountain ? 0.35 : 0.8, metalness: mountain ? 0.7 : 0, side: THREE.DoubleSide });
   const [wy0, wy1, wt] = mountain ? [0.32, 0.78, 0.15] : city ? [0, 1.1, 0.6] : [0, 0.95, 0.6];
   for (const side of [1, -1]) {
@@ -386,7 +400,7 @@ function buildTrack(id = 'circuit') {
       if (i > 0) wd += flatDist(c, center[(i - 1) % N]);
       // inner face (2 verts) + top (2 verts)
       wp.push(x0, c.y + wy0, z0, x0, c.y + wy1, z0, x1, c.y + wy1, z1, x1, c.y + wy1, z1);
-      const u = wd / 6;
+      const u = wd / (circuit ? 24 : 6) * (circuit ? -side : 1);   // flip on one side so the boards read the right way round
       wu.push(u, 0, u, 1, u, 1, u, 1);
       if (i < N) {
         const a = i * 4, b = a + 4;
@@ -415,7 +429,13 @@ function buildTrack(id = 'circuit') {
     group.add(posts);
   }
 
-  return { id, group, center, tangents, nrm, N, length, wall: WALL, roadW: ROAD_W, start: { x: c0.x, y: c0.y, z: c0.z, heading: heading0 }, road, runoff, hemi, lamps, poles, windows };
+  if (mountain) mountainDetails({ group, center, tangents, nrm, N, WALL, rand, heightAt, near });
+  const mid = center.reduce((m, p) => m.add(p), new THREE.Vector3()).multiplyScalar(1 / N);
+  const sky = makeSky(); group.add(sky.mesh);
+  const clouds = makeClouds(mid, rand); group.add(clouds.group);
+  const horizon = makeHorizon(id, mid, rand); group.add(horizon.group);
+  windows.push(...horizon.nightMats);
+  return { id, group, center, tangents, nrm, N, length, wall: WALL, roadW: ROAD_W, start: { x: c0.x, y: c0.y, z: c0.z, heading: heading0 }, road, runoff, hemi, lamps, poles, windows, sky, clouds };
 }
 
 /* ---------- skid marks & tyre smoke ---------- */
@@ -672,7 +692,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     document.body.classList.remove('forced-landscape');
   }
   const st = { popT: 0, handWas: 0, fxK: 0, manual: false, vl: 0, yaw: 0, shake: 0, drift: 0, driftIdle: 0, score: 0, driftBest: 0, smokeT: 0, gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0 };
-  let perf, wheelbase, redline, spec, phys;
+  let perf, wheelbase, redline, spec, phys, driver = null;
   // weight distribution (share on the rear axle) for cars whose engine sits behind the driver or far back
   const REAR_SHARE = { f40: 0.58, huracan: 0.58, r8: 0.58, gt3rs: 0.61, p930: 0.6, p911ts: 0.61, sls: 0.53, amggt: 0.53, golf1: 0.38, gtr: 0.46 };
   // chassis numbers for the tyre model: mass, axle distances, grip, centre of gravity height, yaw inertia
@@ -759,9 +779,17 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     savePref('veloce-night', env.night); savePref('veloce-rain', env.rain);
     if (!track) return;
     const n = env.night, r = env.rain;
-    const sky = n ? (r ? 0x0b0f16 : 0x070b14) : (r ? 0x8e99a6 : 0xa9cbe8);
+    const sky = n ? (r ? 0x0b0f16 : 0x0a1222) : (r ? 0x939ea9 : 0xc5dcf0);
     scene.background = new THREE.Color(sky);
-    scene.fog = new THREE.Fog(sky, n ? 40 : r ? 60 : 160, n ? 330 : r ? 420 : 900);
+    scene.fog = new THREE.Fog(sky, n ? 40 : r ? 60 : 260, n ? 330 : r ? 480 : 1750);
+    const U = track.sky.uniforms;
+    U.top.value.setHex(n ? (r ? 0x05070b : 0x02050d) : (r ? 0x5f6a76 : 0x3a7bd5));
+    U.horizon.value.setHex(sky);
+    U.below.value.setHex(n ? 0x05080e : r ? 0x7d8792 : 0x9fb3c4);
+    U.sunColor.value.setHex(n ? 0xb9c8e8 : r ? 0x000000 : 0xfff2d6);
+    U.sunSize.value = n ? 0.35 : 1;                          // at night the "sun" is a small moon
+    U.stars.value = n && !r ? 0.9 : 0;
+    track.clouds.set(n ? 0x2a3242 : r ? 0x7c848e : 0xffffff, n ? 0.25 : r ? 0.95 : 0.85);
     scene.environmentIntensity = n ? 0.12 : r ? 0.6 : 1;
     for (const [l, base] of sceneLights) l.intensity = base * (n ? 0.08 : r ? 0.6 : 1);
     keyLight.intensity = n ? 0.25 : r ? 0.9 : 2.2;
@@ -887,6 +915,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     ghost = makeGhost(car); ghost.rotation.order = 'YZX'; ghost.userData.idx = 0; track.group.add(ghost);
     sceneLights = scene.children.filter(o => o.isLight && o !== keyLight).map(l => [l, l.intensity]);
     headLights = makeHeadLights();
+    driver = createDriver(car);                              // after the ghost: the ghost car stays empty
     goLandscape();
     scene.add(track.group);
     st.score = 0;
@@ -977,7 +1006,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     scene.remove(track.group);
     track.group.traverse(o => {
       if (o.geometry) o.geometry.dispose();
-      if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); if (m.emissiveMap) m.emissiveMap.dispose(); m.dispose(); });
     });
     track = null;
     hud.remove(); hud = null;
@@ -988,6 +1017,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     scene.environmentIntensity = 1; keyLight.intensity = 2.2; keyLight.color.setHex(0xffffff);
     for (const [l, base] of sceneLights) l.intensity = base;
     sceneLights = [];
+    if (driver) { driver.dispose(); driver = null; }
     if (headLights) { car.root.remove(headLights); headLights.traverse(o => { if (o.dispose) o.dispose(); }); headLights = null; }
     ghost = null;
     Object.assign(keyLight.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 20 });
@@ -1190,6 +1220,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (car.setWheels) car.setWheels(st.steer, st.wheelF, st.wheelR);
     car.body.rotation.set(st.roll, 0, st.pitch);
     if (car.setSteer) car.setSteer(st.steer * 7);            // steering wheel: ~7x the road-wheel angle
+    if (driver) { driver.update(st.steer * 7); driver.setCockpit(st.cam === 'cockpit'); }
 
     // ---- drifting: points, skid marks, smoke, squeal ----
     const slipNow = Math.atan2(st.vl, Math.max(Math.abs(st.v), 1));
@@ -1244,6 +1275,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       }
     }
     track.rain.update(dt, camera.position, fwd.x * st.v, fwd.z * st.v);
+    track.sky.mesh.position.copy(camera.position);
 
     // shadows follow the car
     keyLight.position.set(st.x + 8, st.y + 16, st.z + 10);
