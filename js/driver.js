@@ -53,10 +53,52 @@ export function createDriver(car) {
   const head = new THREE.Group(); group.add(head);
   const hc = E.clone().add(new THREE.Vector3(-0.075, 0.025, 0));
   const skull = add(new THREE.SphereGeometry(0.1, 24, 18), skin, hc, head); skull.scale.set(1.08, 1.15, 0.95);
-  const hairCap = add(new THREE.SphereGeometry(0.106, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, hc.clone().add(new THREE.Vector3(-0.012, 0.02, 0)), head);
+  // bare head: hair and sunglasses
+  const bare = new THREE.Group(); head.add(bare);
+  const hairCap = add(new THREE.SphereGeometry(0.106, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, hc.clone().add(new THREE.Vector3(-0.012, 0.02, 0)), bare);
   hairCap.scale.set(1.08, 1.12, 0.98); hairCap.rotation.z = 0.25;
-  const glasses = add(new THREE.BoxGeometry(0.02, 0.035, 0.16), shades, hc.clone().add(new THREE.Vector3(0.095, 0.012, 0)), head);
-  void glasses;
+  add(new THREE.BoxGeometry(0.02, 0.035, 0.16), shades, hc.clone().add(new THREE.Vector3(0.095, 0.012, 0)), bare);
+  // helmet: glossy shell, a dark mirrored visor, two stripes in the car's colour, chin vents and a neck collar
+  const helmet = new THREE.Group(); head.add(helmet);
+  const shellMat = new THREE.MeshPhysicalMaterial({ color: 0xf2f2f0, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const stripeMat = new THREE.MeshPhysicalMaterial({ color: 0xd42a2a, roughness: 0.25, clearcoat: 1 });
+  const visorMat = new THREE.MeshPhysicalMaterial({ color: 0x1a2a3c, roughness: 0.04, metalness: 0.92, clearcoat: 1, envMapIntensity: 1.6 });
+  const hcH = hc.clone().add(new THREE.Vector3(-0.008, 0.012, 0));
+  const shell = add(new THREE.SphereGeometry(0.138, 36, 26), shellMat, hcH, helmet); shell.scale.set(1.12, 1.02, 0.96);
+  const visor = add(new THREE.SphereGeometry(0.1405, 36, 10, Math.PI - 0.95, 1.9, 1.12, 0.52), visorMat, hcH, helmet); visor.scale.copy(shell.scale);
+  const rim = add(new THREE.TorusGeometry(0.1405, 0.006, 6, 40, 1.9), stripeMat, hcH, helmet);   // visor seal along the top edge
+  rim.rotation.set(Math.PI / 2, 0, Math.PI - 0.95 - Math.PI); rim.position.y += 0.1405 * Math.cos(1.12) * 1.02; rim.scale.set(1.12 * Math.sin(1.12), 0.96 * Math.sin(1.12), 1);
+  for (const z of [-0.032, 0.032]) {
+    const st = add(new THREE.TorusGeometry(0.1395, 0.009, 6, 48, Math.PI * 0.82), stripeMat, hcH.clone().add(new THREE.Vector3(0, 0, z)), helmet);
+    st.rotation.z = 0.28; st.scale.set(1.12, 1.02, 1);
+  }
+  for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.012, 0.008, 0.05), shades, hcH.clone().add(new THREE.Vector3(0.148, -0.06 - i * 0.016, 0)), helmet);
+  add(new THREE.CylinderGeometry(0.07, 0.078, 0.055, 18), shades, hc.clone().add(new THREE.Vector3(-0.02, -0.145, 0)), helmet);   // neck collar
+  let paintKey = null;
+  const syncColours = () => {
+    const col = car.tuning && car.tuning.color;
+    if (!col || col === paintKey) return;
+    paintKey = col;
+    const c = new THREE.Color(col);
+    stripeMat.color.copy(c);
+    const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    shellMat.color.setHex(lum > 0.55 ? 0x18191c : 0xf2f2f0);   // a shell that contrasts with the stripes
+  };
+  syncColours();
+  // fit under the roof: a ray straight up from the eye finds the headlining; the helmet sinks a little, then shrinks
+  {
+    car.root.updateMatrixWorld(true);
+    const meshes = []; car.body.traverse(o => { if (o.isMesh && !o.name.startsWith('driver')) meshes.push(o); });
+    const origin = car.body.localToWorld(E.clone()), upW = new THREE.Vector3(0, 1, 0).transformDirection(car.body.matrixWorld);
+    const hits = new THREE.Raycaster(origin, upW, 0.02, 0.6).intersectObjects(meshes, false);
+    const roofGap = hits.length ? hits[0].distance : 0.3;               // metres from the eye to the roof lining
+    const top = hcH.y - E.y + 0.138 * 1.02;                             // helmet top above the eye as built
+    let excess = top - (roofGap - 0.012);
+    if (excess > 0) { const drop = Math.min(excess, 0.045); helmet.position.y -= drop; excess -= drop; }
+    if (excess > 0) { const k = Math.max(0.82, 1 - excess / 0.15); helmet.scale.setScalar(k); helmet.position.addScaledVector(hcH, 1 - k); }   // shrink about the head's centre
+  }
+  const setHelmet = on => { helmet.visible = on; bare.visible = !on; };
+  setHelmet(true);
   add(new THREE.CylinderGeometry(0.045, 0.05, 0.12, 14), skin, hc.clone().add(new THREE.Vector3(-0.02, -0.15, 0)), head);   // neck
 
   // ---- torso, leaning back with the seat ----
@@ -106,6 +148,7 @@ export function createDriver(car) {
 
   const tmp = new THREE.Vector3(), q = new THREE.Quaternion();
   function update(wheelAngle) {
+    syncColours();
     // the hands ride on the rim up to a point, then the rim slides through them
     const a = THREE.MathUtils.clamp(wheelAngle, -HAND_LIMIT, HAND_LIMIT);
     for (const arm of arms) {
@@ -132,10 +175,11 @@ export function createDriver(car) {
     group,
     update,
     setCockpit(on) { head.visible = !on; },
+    setHelmet,
     dispose() {
       car.body.remove(group);
       group.traverse(o => { if (o.geometry) o.geometry.dispose(); });
-      [skin, hair, jacket, sleeve, jeans, glove, shoe, shades].forEach(m => m.dispose());
+      [skin, hair, jacket, sleeve, jeans, glove, shoe, shades, shellMat, stripeMat, visorMat].forEach(m => m.dispose());
     },
   };
 }

@@ -258,3 +258,10 @@ body.driving.forced-landscape .stage { inset: auto; top: 0; left: 0; width: 100d
   .tp-ico { grid-row: span 3; align-self: center }
 }
 .records span b { margin: 2px 0 }
+
+/* helmet view in the cockpit: the visor opening darkens the top and bottom edges */
+.dh-visor { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .3s;
+  background: linear-gradient(180deg, rgba(5,7,10,.88) 0%, rgba(5,7,10,.55) 7%, rgba(5,7,10,0) 16%, rgba(5,7,10,0) 82%, rgba(5,7,10,.5) 92%, rgba(5,7,10,.85) 100%),
+              radial-gradient(ellipse 75% 95% at 50% 50%, rgba(0,0,0,0) 70%, rgba(5,7,10,.55) 100%) }
+.dh-visor.on { opacity: 1 }
+#dhHelmet.on { background: #4fb3ff; color: #031320; border-color: #4fb3ff }
