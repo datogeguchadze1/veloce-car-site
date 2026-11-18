@@ -424,6 +424,90 @@ export async function loadGlbCar(m, onProgress) {
   const wheelNodes = findNodes(model, cfg.wheels);
   wheelNodes.forEach(n => root.attach(n));
 
+  /* ---------- road wheels: front ones steer, all of them roll ----------
+     Every connected piece of geometry that fits inside a wheel-sized box at one
+     of the four corners (from m.wheel) is moved into that corner's rig:
+     rig (steers about Y, front only) → spin (rolls about Z) → pieces.
+     Brake callipers steer with the wheel but do not roll. */
+  const rigs = [];
+  if (!cfg.noWheels && m.wheel && m.wheel.x) {
+    root.updateMatrixWorld(true);
+    const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    const R = m.wheel.r || 0.32, half = size.z / 2;
+    const corners = [];
+    m.wheel.x.forEach((x, i) => [-1, 1].forEach(s => corners.push({
+      front: i === 0, s,
+      box: new THREE.Box3(new THREE.Vector3(x - R * 1.7, -0.08, s < 0 ? -half - 0.15 : half * 0.3), new THREE.Vector3(x + R * 1.7, R * 2.6 + 0.08, s < 0 ? -half * 0.3 : half + 0.15)),
+      parts: [], hubBox: new THREE.Box3(),
+    })));
+    const anyBox = corners.reduce((b, c) => b.union(c.box), new THREE.Box3());
+    const isCaliper = mt => /calip|brake_?cal|suport|suspen/i.test(mt.name || '');
+    const inCabin = o => { for (let p = o; p; p = p.parent) if (p.name === 'cabin') return true; return false; };
+    const meshList = [];
+    if (!wheelNodes.length) root.traverse(o => { if (o.isMesh && !inCabin(o)) meshList.push(o); });
+    // pass 1: candidate pieces (whole meshes or connected pieces) lying inside a corner box
+    const cands = [];       // { mesh, ci, box, piece (root key) | null }
+    const split = new Map();
+    for (const mesh of meshList) {
+      const mb = new THREE.Box3().setFromObject(mesh).applyMatrix4(toRoot);
+      if (!mb.intersectsBox(anyBox)) continue;
+      const whole = corners.findIndex(c => c.box.containsBox(mb));
+      if (whole >= 0) { cands.push({ mesh, ci: whole, box: mb, piece: null }); continue; }
+      const pc = pieces(mesh, toRoot);
+      split.set(mesh, pc);
+      for (const [rk, c] of pc.info) { const ci = corners.findIndex(cn => cn.box.containsBox(c.box)); if (ci >= 0) cands.push({ mesh, ci, box: c.box, piece: rk }); }
+    }
+    // the tyre: the tallest piece in the corner that reaches the ground; the wheel is whatever fits inside it
+    corners.forEach((c, ci) => {
+      let best = null;
+      for (const k of cands) {
+        if (k.ci !== ci || k.box.min.y > 0.15) continue;
+        const hgt = k.box.max.y - k.box.min.y, len = k.box.max.x - k.box.min.x;
+        if (hgt < R * 1.2 || hgt > R * 2.7 || Math.abs(len - hgt) > hgt * 0.25) continue;   // round: as long as it is tall
+        if (!best || hgt > best.box.max.y - best.box.min.y) best = k;
+      }
+      c.region = best ? best.box.clone().expandByVector(new THREE.Vector3(0.05, 0.05, 0)) : null;
+      if (c.region) { c.hub = best.box.getCenter(new THREE.Vector3()); c.region.min.z = c.box.min.z; c.region.max.z = c.box.max.z; }
+    });
+    const keep = k => corners[k.ci].region && corners[k.ci].region.containsBox(k.box);
+    // pass 2: move the pieces into per-corner meshes
+    for (const k of cands) if (!k.piece && keep(k)) corners[k.ci].parts.push({ mesh: k.mesh, caliper: toList(k.mesh.material).some(isCaliper) });
+    for (const [mesh, pc] of split) {
+      const owner = new Map();
+      for (const k of cands) if (k.mesh === mesh && k.piece !== null && keep(k)) owner.set(k.piece, k.ci);
+      if (!owner.size) continue;
+      const { tris, at, rootOf } = pc;
+      const lists = corners.map(() => []), rest = [];
+      for (let t = 0; t < tris; t++) { const ci = owner.get(rootOf(t)); (ci === undefined ? rest : lists[ci]).push(at(t * 3), at(t * 3 + 1), at(t * 3 + 2)); }
+      lists.forEach((list, ci) => {
+        if (!list.length) return;
+        const g = new THREE.BufferGeometry();
+        for (const [name, attr] of Object.entries(mesh.geometry.attributes)) g.setAttribute(name, attr);
+        g.setIndex(list);
+        const part = new THREE.Mesh(g, mesh.material);
+        part.name = `${mesh.name}:wheel${ci}`;
+        part.position.copy(mesh.position); part.quaternion.copy(mesh.quaternion); part.scale.copy(mesh.scale);
+        part.castShadow = mesh.castShadow; part.receiveShadow = true;
+        mesh.parent.add(part); part.updateMatrixWorld(true);
+        corners[ci].parts.push({ mesh: part, caliper: toList(mesh.material).some(isCaliper) });
+      });
+      mesh.geometry = mesh.geometry.clone();
+      mesh.geometry.setIndex(rest);
+    }
+    for (const c of corners) {
+      if (!c.parts.length) continue;
+      // hub: the centre of the tyre found in pass 1
+      if (!c.region) continue;
+      const hub = c.hub.clone();
+      c.parts.forEach(p => c.hubBox.union(new THREE.Box3().setFromPoints(samplePoints([p.mesh], toRoot, 1500))));
+      const rig = new THREE.Group(); rig.name = 'wheel-rig'; rig.position.copy(hub); root.add(rig);
+      const spinG = new THREE.Group(); rig.add(spinG);
+      rig.updateMatrixWorld(true);
+      c.parts.forEach(p => (p.caliper ? rig : spinG).attach(p.mesh));
+      rigs.push({ rig, spin: spinG, front: c.front, parts: c.parts.length, radius: +(c.hubBox.max.y - c.hubBox.min.y).toFixed(2) / 2 });
+    }
+  }
+
   /* ---------- driver's eye ---------- */
   const eye = cabin && cabin.eye ? new THREE.Vector3(...cabin.eye) : cfg.eye
     ? new THREE.Vector3(...cfg.eye)
@@ -450,6 +534,9 @@ export async function loadGlbCar(m, onProgress) {
     target: { doors: 0, hood: 0, trunk: 0 },
     credit: cfg.credit || null,
     noInterior: !!cfg.noInterior,
+    // steer: road-wheel angle (rad, + = left); spinF / spinR: how far the front / rear wheels have rolled (rad)
+    setWheels(steer, spinF, spinR = spinF) { for (const w of rigs) { w.rig.rotation.y = w.front ? steer : 0; w.spin.rotation.z = -(w.front ? spinF : spinR); } },
+    wheelRigs: rigs.length,
     setSteer(a) { if (steer) steer.pivot.quaternion.setFromAxisAngle(steer.axis, -a); if (cabin) cabin.setSteer(a); },
     setGauges(kmh, rpm) { turnGauge(gauges.speedo, Math.abs(kmh)); turnGauge(gauges.tacho, rpm); if (cabin) cabin.setGauges(kmh, rpm); },
     hasGauges: Object.keys(gauges).length > 0, gauges,
@@ -510,6 +597,6 @@ export async function loadGlbCar(m, onProgress) {
   };
   car.applyTuning(baseTuning);
   car.setGauges(0, 0);
-  console.info(`[glbCar] ${m.id}: ${meshes.length} meshes, ${doors.length} doors, hood ${!!hood}, trunk ${!!trunk}, wheels ${wheelNodes.length}, size ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)} m`);
+  console.info(`[glbCar] ${m.id}: ${meshes.length} meshes, ${doors.length} doors, hood ${!!hood}, trunk ${!!trunk}, wheels ${wheelNodes.length}, wheel rigs ${rigs.length}, size ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)} m`);
   return car;
 }

@@ -13,7 +13,7 @@ export const MODELS = [
   {
     id: '300sl',
     brand: 'Mercedes-Benz',
-    perf: { vmax: 250, t100: 9.5 },   // test drive: top speed km/h, 0–100 s
+    perf: { vmax: 250, t100: 9.5, drive: 'rwd' },   // test drive: top speed km/h, 0–100 s
     name: '300 SL Gullwing',
     chassis: 'W198',
     year: 1954,
@@ -48,7 +48,7 @@ export const MODELS = [
   {
     id: 'sls',
     brand: 'Mercedes-Benz',
-    perf: { vmax: 317, t100: 3.8 },   // test drive: top speed km/h, 0–100 s
+    perf: { vmax: 317, t100: 3.8, drive: 'rwd' },   // test drive: top speed km/h, 0–100 s
     name: 'SLS AMG',
     chassis: 'C197',
     year: 2010,
@@ -87,7 +87,7 @@ export const MODELS = [
   {
     id: 'w201',
     brand: 'Mercedes-Benz',
-    perf: { vmax: 195, t100: 11 },
+    perf: { vmax: 195, t100: 11, drive: 'rwd' },
     name: '190 E',
     chassis: 'W201',
     year: 1982,
@@ -109,7 +109,7 @@ export const MODELS = [
   {
     id: 'amggt',
     brand: 'Mercedes-Benz',
-    perf: { vmax: 310, t100: 3.8 },
+    perf: { vmax: 310, t100: 3.8, drive: 'rwd' },
     name: 'AMG GT',
     chassis: 'C190',
     year: 2015,
@@ -146,7 +146,7 @@ export const MODELS = [
   {
     id: 'e63',
     brand: 'Mercedes-Benz',
-    perf: { vmax: 300, t100: 3.4 },
+    perf: { vmax: 300, t100: 3.4, drive: 'awd' },
     name: 'AMG E 63 S',
     chassis: 'W213',
     year: 2017,
@@ -167,7 +167,7 @@ export const MODELS = [
   {
     id: 'w221',
     brand: 'Mercedes-Benz',
-    perf: { vmax: 250, t100: 5.4 },
+    perf: { vmax: 250, t100: 5.4, drive: 'rwd' },
     name: 'S-Class',
     chassis: 'W221',
     year: 2005,
@@ -198,7 +198,7 @@ export const MODELS = [
   {
     id: 'dtm',
     brand: 'Mercedes-Benz',
-    perf: { vmax: 300, t100: 3 },
+    perf: { vmax: 300, t100: 3, drive: 'rwd' },
     name: 'C 63 AMG DTM',
     chassis: 'C205 DTM',
     year: 2018,
@@ -221,7 +221,7 @@ export const MODELS = [
   {
     id: 'supra',
     brand: 'Toyota',
-    perf: { vmax: 250, t100: 5 },
+    perf: { vmax: 250, t100: 5, drive: 'rwd' },
     name: 'Supra',
     chassis: 'A80 (MK4)',
     year: 1993,
@@ -248,7 +248,7 @@ export const MODELS = [
   {
     id: 'm3e36',
     brand: 'BMW',
-    perf: { vmax: 250, t100: 5.5 },
+    perf: { vmax: 250, t100: 5.5, drive: 'rwd' },
     name: 'M3',
     chassis: 'E36',
     year: 1997,
@@ -272,7 +272,7 @@ export const MODELS = [
   {
     id: 'lada2103',
     brand: 'Lada',
-    perf: { vmax: 152, t100: 16 },
+    perf: { vmax: 152, t100: 16, drive: 'rwd' },
     name: '2103 „ჟიგული“',
     chassis: 'ВАЗ-2103',
     year: 1972,
@@ -300,7 +300,7 @@ export const MODELS = [
   {
     id: 'golf1',
     brand: 'Volkswagen',
-    perf: { vmax: 182, t100: 9 },
+    perf: { vmax: 182, t100: 9, drive: 'fwd' },
     name: 'Golf GTI',
     chassis: 'Mk1',
     year: 1976,
@@ -326,7 +326,7 @@ export const MODELS = [
   {
     id: 'f40',
     brand: 'Ferrari',
-    perf: { vmax: 324, t100: 4.1 },
+    perf: { vmax: 324, t100: 4.1, drive: 'rwd' },
     name: 'F40',
     chassis: 'F120',
     year: 1987,
@@ -348,7 +348,7 @@ export const MODELS = [
   {
     id: 'gtr',
     brand: 'Nissan',
-    perf: { vmax: 315, t100: 2.9 },
+    perf: { vmax: 315, t100: 2.9, drive: 'awd' },
     name: 'GT-R',
     chassis: 'R35',
     year: 2017,
@@ -374,7 +374,7 @@ export const MODELS = [
   {
     id: 'gt3rs',
     brand: 'Porsche',
-    perf: { vmax: 296, t100: 3.2 },
+    perf: { vmax: 296, t100: 3.2, drive: 'rwd' },
     name: '911 GT3 RS',
     chassis: '992',
     year: 2023,
@@ -401,7 +401,7 @@ export const MODELS = [
   {
     id: 'roma',
     brand: 'Ferrari',
-    perf: { vmax: 320, t100: 3.4 },
+    perf: { vmax: 320, t100: 3.4, drive: 'rwd' },
     name: 'Roma',
     chassis: 'F169',
     year: 2020,
@@ -423,7 +423,7 @@ export const MODELS = [
   {
     id: 'huracan',
     brand: 'Lamborghini',
-    perf: { vmax: 325, t100: 3.0 },
+    perf: { vmax: 325, t100: 3.0, drive: 'awd' },
     name: 'Huracán',
     chassis: 'LB724',
     year: 2014,
@@ -449,7 +449,7 @@ export const MODELS = [
   {
     id: 'r8',
     brand: 'Audi',
-    perf: { vmax: 330, t100: 3.2 },
+    perf: { vmax: 330, t100: 3.2, drive: 'awd' },
     name: 'R8 V10',
     chassis: '4S',
     year: 2016,
@@ -473,7 +473,7 @@ export const MODELS = [
   {
     id: 'p930',
     brand: 'Porsche',
-    perf: { vmax: 250, t100: 5.5 },
+    perf: { vmax: 250, t100: 5.5, drive: 'rwd' },
     name: '911 Turbo',
     chassis: '930',
     year: 1975,
@@ -500,7 +500,7 @@ export const MODELS = [
   {
     id: 'niva',
     brand: 'Lada',
-    perf: { vmax: 130, t100: 22 },
+    perf: { vmax: 130, t100: 22, drive: 'awd' },
     name: 'Niva',
     chassis: 'ВАЗ-2121',
     year: 1977,
@@ -527,7 +527,7 @@ export const MODELS = [
   {
     id: 'ae86',
     brand: 'Toyota',
-    perf: { vmax: 200, t100: 8.5 },
+    perf: { vmax: 200, t100: 8.5, drive: 'rwd' },
     name: 'Sprinter Trueno',
     chassis: 'AE86',
     year: 1983,
@@ -550,7 +550,7 @@ export const MODELS = [
   {
     id: 'p911ts',
     brand: 'Porsche',
-    perf: { vmax: 330, t100: 2.7 },
+    perf: { vmax: 330, t100: 2.7, drive: 'awd' },
     name: '911 Turbo S',
     chassis: '992',
     year: 2020,

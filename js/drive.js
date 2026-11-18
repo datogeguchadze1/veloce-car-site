@@ -575,6 +575,7 @@ function buildHud(stage) {
         <button id="dhTrack" title="ტრასის შეცვლა (T)">🗺</button>
         <button id="dhTilt" class="touch-only" title="დახრით მართვა">📱</button>
         <button id="dhMode" title="გადაცემათა კოლოფი: ავტომატი / მექანიკა (M)">A</button>
+        <button id="dhAssist" title="დრიფტის დამხმარე: კონტრ-საჭე თავისით (H)">🅳</button>
         <button id="dhGhost" title="მოჩვენება: საუკეთესო წრე (G)">👻</button>
         <button id="dhNight" title="დღე / ღამე (N)">🌙</button>
         <button id="dhRain" title="მშრალი / წვიმა (B)">🌧</button>
@@ -592,7 +593,7 @@ function buildHud(stage) {
       <div class="dh-rpm"><i id="dhRpm"></i></div>
       <span class="dh-gear" id="dhGear">1</span><b id="dhSpd">0</b><small>კმ/სთ</small><i id="dhOff">ბალახი</i>
     </div>
-    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · T ტრასა · G მოჩვენება · N ღამე · B წვიმა · R ტრასაზე · Esc გასვლა</p>
+    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · T ტრასა · H დრიფტის დამხმარე · G მოჩვენება · N ღამე · B წვიმა · R ტრასაზე · Esc გასვლა</p>
     <div class="dh-touch">
       <div class="dh-steer"><button data-k="left" aria-label="მარცხნივ">◀</button><button data-k="right" aria-label="მარჯვნივ">▶</button></div>
       <div class="dh-shift"><button data-shift="1">＋</button><button data-shift="-1">－</button></div>
@@ -671,7 +672,21 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     document.body.classList.remove('forced-landscape');
   }
   const st = { popT: 0, handWas: 0, fxK: 0, manual: false, vl: 0, yaw: 0, shake: 0, drift: 0, driftIdle: 0, score: 0, driftBest: 0, smokeT: 0, gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0 };
-  let perf, wheelbase, redline, spec;
+  let perf, wheelbase, redline, spec, phys;
+  // weight distribution (share on the rear axle) for cars whose engine sits behind the driver or far back
+  const REAR_SHARE = { f40: 0.58, huracan: 0.58, r8: 0.58, gt3rs: 0.61, p930: 0.6, p911ts: 0.61, sls: 0.53, amggt: 0.53, golf1: 0.38, gtr: 0.46 };
+  // chassis numbers for the tyre model: mass, axle distances, grip, centre of gravity height, yaw inertia
+  function chassis(model) {
+    const w = parseFloat(String((model.specs && model.specs.weight) || '').replace(/[^\d]/g, ''));
+    const m = w > 500 && w < 4000 ? w : 1400;
+    const L = Math.abs(model.wheel.x[0] - model.wheel.x[1]) || 2.6;
+    const rear = REAR_SHARE[model.id] ?? (model.perf && model.perf.drive === 'fwd' ? 0.4 : 0.5);
+    const a = L * rear, b = L - a;                    // CG → front axle, CG → rear axle
+    const mu = model.id === 'dtm' ? 1.3 : model.era === 'classic' ? 0.95 : model.era === 'eighties' ? 1.0 : 1.1;
+    const h = model.body === 'ჯიპი' ? 0.68 : model.dims && model.dims.L && model.era === 'modern' ? 0.46 : 0.52;
+    return { m, a, b, L, mu, h, Iz: m * a * b * 1.05, drive: (model.perf && model.perf.drive) || 'rwd', r: model.wheel.r || 0.32 };
+  }
+
   const IDLE = 850;
   const RATIOS = [0.25, 0.41, 0.57, 0.72, 0.86, 1.0];   // share of top speed reached at the redline, per gear
   const savedFog = { fog: null, bg: null };
@@ -686,6 +701,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     else if (e.code === 'KeyC') toggleCam();
     else if (e.code === 'KeyT') choose(car, curModel);
     else if (e.code === 'KeyG') setGhost(!env.ghost);
+    else if (e.code === 'KeyH') setAssist(!env.assist);
     else if (e.code === 'KeyN') setEnv({ night: !env.night });
     else if (e.code === 'KeyB') setEnv({ rain: !env.rain });
     else if (e.code === 'KeyM') setManual(!st.manual);
@@ -729,7 +745,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
 
   const pref = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v === '1'; } catch { return d; } };
   const savePref = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* private mode */ } };
-  const env = { night: pref('veloce-night', false), rain: pref('veloce-rain', false), ghost: pref('veloce-ghost', true) };
+  const env = { night: pref('veloce-night', false), rain: pref('veloce-rain', false), ghost: pref('veloce-ghost', true), assist: pref('veloce-assist', true) };
   let sceneLights = [];      // the showroom's own lights, dimmed at night / in the rain
   let modelId = null, ghost = null, record = null, trace = [], traceT = 0, sectors = [], headLights = null;
   let trackId = 'circuit', curModel = null, picker = null;
@@ -764,6 +780,10 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     track.poles.visible = n || track.id === 'city';
     for (const m of track.windows) m.emissiveIntensity = n ? 1.1 : r ? 0.15 : 0;
     if (hud) { hud.querySelector('#dhNight').classList.toggle('on', n); hud.querySelector('#dhRain').classList.toggle('on', r); }
+  }
+  function setAssist(on) {
+    env.assist = on; savePref('veloce-assist', on);
+    if (hud) hud.querySelector('#dhAssist').classList.toggle('on', on);
   }
   function setGhost(on) {
     env.ghost = on; savePref('veloce-ghost', on);
@@ -856,6 +876,8 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     redline = perf.redline || (model.era === 'classic' ? 5800 : 6800);
     st.gear = 1; st.rpm = IDLE; st.shift = 0;
     wheelbase = Math.abs(model.wheel.x[0] - model.wheel.x[1]);
+    phys = chassis(model);
+    st.ax = 0; st.ay = 0; st.wheelF = 0; st.wheelR = 0; st.spinR = 0; st.driftT = 0;
     track = buildTrack(trackId);
     car.root.rotation.order = 'YZX';                     // heading, then pitch on slopes
     track.skids = makeSkids(track.group);
@@ -931,6 +953,8 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     st.lapStart = st.time; st.armed = false; st.cam = 'chase';
     trace = []; traceT = 0; sectors = [];
     hud.querySelector('#dhGhost').onclick = () => setGhost(!env.ghost);
+    hud.querySelector('#dhAssist').onclick = () => setAssist(!env.assist);
+    setAssist(env.assist);
     hud.querySelector('#dhNight').onclick = () => setEnv({ night: !env.night });
     hud.querySelector('#dhRain').onclick = () => setEnv({ rain: !env.rain });
     setGhost(env.ghost);
@@ -975,6 +999,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       car.root.position.set(0, 0, 0); car.root.rotation.set(0, 0, 0); car.root.rotation.order = 'XYZ';
       car.body.rotation.set(0, 0, 0);
       if (car.setSteer) car.setSteer(0);
+      if (car.setWheels) car.setWheels(0, 0, 0);
       if (car.setGauges) car.setGauges(0, 0);
     }
     if (!keep) onExit && onExit();
@@ -984,6 +1009,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
 
   function update(dt, snap = false) {
     if (!st.active || st.paused) return;
+    dt = Math.max(dt, 1e-4);                                 // the snap call on start passes 0
     st.time += dt;
     const WALL = track.wall;
     const vmax = perf.vmax / 3.6;
@@ -992,7 +1018,11 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     const off = near.dist > WALL + 1;                      // only if something pushed the car past the barriers
 
     // ---- longitudinal (st.v = speed along the car, st.vl = sideways) ----
-    const throttle = keys.gas, brake = keys.brake;
+    // drift assist also works the throttle: past ~40° of slide it eases off so the car does not spin
+    const beta0 = Math.atan2(-st.vl, Math.max(Math.abs(st.v), 1));
+    const ease = env.assist && Math.abs(st.v) > 6 ? THREE.MathUtils.clamp((0.85 - Math.abs(beta0)) / 0.35, 0.2, 1) : 1;
+    const throttle = keys.gas * ease, brake = keys.brake;
+    const v0 = st.v;
     if (!st.manual) {
       if (throttle && st.v >= -0.5) st.v += throttle * a0 * Math.max(0, 1 - st.v / vmax) * dt;
       if (brake) {
@@ -1022,40 +1052,76 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       st.v = Math.min(st.v, 75 / 3.6);
     }
 
-    // ---- steering: less lock at speed, more while sliding or on the handbrake ----
-    const slip = Math.atan2(st.vl, Math.max(Math.abs(st.v), 1));
-    const sliding = Math.abs(slip) > 0.12 && Math.abs(st.v) > 6;
-    const lock = 0.55 / (1 + Math.abs(st.v) / 22) * (keys.hand || sliding ? 1.7 : 1);
+    // ---- tyre loads: braking puts weight on the nose, acceleration on the tail ----
+    const G = 9.81, M = phys.m, L = phys.L, A = phys.a, B = phys.b;
+    const mu = phys.mu * (env.rain ? 0.7 : 1) * (off ? 0.5 : 1);
+    const Fzf = Math.max(0.2 * M * G, M * G * B / L - M * st.ax * phys.h / L);
+    const Fzr = Math.max(0.2 * M * G, M * G * A / L + M * st.ax * phys.h / L);
+
+    // ---- traction: the driven tyres can only push so hard; the rest is wheelspin ----
+    const aReq = (st.v - v0) / dt;                          // what engine / brakes / drag / slope asked for
+    const shareF = phys.drive === 'fwd' ? 1 : phys.drive === 'awd' ? 0.4 : 0, shareR = 1 - shareF;
+    let spin = 0;
+    if (throttle && aReq > 0 && st.v > -0.5) {
+      const cap = mu * (shareF * Fzf + shareR * Fzr) / M * (phys.drive === 'awd' ? 1 : 1.05);
+      if (aReq > cap) { spin = Math.min(1, (aReq - cap) / Math.max(cap, 1)); st.v = v0 + cap * dt; }
+    }
+    const aLong = (st.v - v0) / dt;                         // what the tyres really transmit along the car
+    // friction circle: force used to drive or brake is not available for cornering
+    const brakeF = brake && st.v > 0.5 ? Math.max(0, -aReq) * M : 0;
+    const latLeft = (Fx, Fz) => { const rho = Math.min(1, Math.abs(Fx) / (mu * Fz)); return Math.max(0.55, Math.sqrt(1 - rho * rho)); };
+    const driveF = throttle && aLong > 0 ? aLong * M : 0;
+    let kf = latLeft(driveF * shareF + brakeF * 0.65, Fzf) * (1 - 0.25 * spin * shareF);
+    let kr = latLeft(driveF * shareR + brakeF * 0.35, Fzr) * (1 - 0.35 * spin * shareR);
+    if (keys.hand) kr *= 0.45;                              // locked rear wheels hold much less sideways
+
+    // ---- steering: digital keys turn the wheel at a limited rate; the assist adds counter-steer ----
     if (tilt.on) tilt.value += (tilt.raw - tilt.value) * (1 - Math.exp(-dt * 14));
     const steerIn = tilt.on && !keys.left && !keys.right ? tilt.value : keys.left - keys.right;
-    const want = steerIn * lock;
-    st.steer += (want - st.steer) * (1 - Math.exp(-dt * 8));
+    const speed0 = Math.abs(st.v);
+    const beta = Math.atan2(-st.vl, Math.max(speed0, 1));  // body slip angle, + = travelling to the left of the nose
+    const slideK = THREE.MathUtils.clamp((Math.abs(beta) - 0.06) / 0.25, 0, 1) * THREE.MathUtils.clamp((speed0 - 4) / 4, 0, 1);
+    // full lock asks for about what the tyres can give (≈ 1 g); counter-steer may use more
+    const lock = Math.min(0.6, L * mu * G / Math.max(speed0 * speed0, 1) + 0.11);
+    const counter = steerIn * beta > 0 ? 0.35 * slideK : 0;
+    let want = steerIn * Math.min(0.62, lock + counter);
+    if (env.assist && slideK > 0) want = THREE.MathUtils.clamp(want * 0.8 + beta * 0.9 * slideK, -0.65, 0.65);
+    const rate = (tilt.on ? 6 : 2.6) * dt;
+    st.steer += THREE.MathUtils.clamp(want - st.steer, -rate, rate);
 
-    // ---- grip: the rear lets go on the handbrake, or under power once sliding ----
-    const strong = a0 > 3;                                  // weak cars cannot hold a power slide
-    const rearLoose = keys.hand || (throttle && sliding && strong && Math.abs(slip) < 1.2);
-    const spun = Math.abs(slip) > 1.2;                       // facing well away from the travel direction
-    const grip = (off ? 2.5 : rearLoose ? (keys.hand ? 0.8 : 1.4) : spun ? 3.5 : 9) * (env.rain ? 0.7 : 1);
-    // yaw rate is limited by how much sideways force the tyres can make (~1.3 g)
-    const A_LAT = env.rain ? 9.5 : 13, sp0 = Math.max(Math.abs(st.v), 4);
-    let yawWant = st.v / wheelbase * Math.tan(st.steer);
-    const yawCap = rearLoose ? Math.min(2.3, 2.6 * A_LAT / sp0) : A_LAT / sp0;
-    if (rearLoose) yawWant *= 1.35;
-    yawWant = THREE.MathUtils.clamp(yawWant, -yawCap, yawCap);
-    st.yaw += (yawWant - st.yaw) * (1 - Math.exp(-dt * (rearLoose ? 3 : 10)));
+    // ---- lateral dynamics: two axles, each tyre with a peak and a fall-off (x forward, y left) ----
+    const tyre = al => Math.sin(1.3 * Math.atan(16 * al));  // peak near 9°, ~0.9 when fully sliding
+    const steps = Math.max(1, Math.ceil(dt / (1 / 120))), h = dt / steps;
+    let vx = st.v, vy = -st.vl, r = st.yaw, ay = 0;
+    const delta = st.steer, cd = Math.cos(delta), sd = Math.sin(delta);
+    for (let i = 0; i < steps; i++) {
+      const sp = Math.abs(vx), vxs = Math.max(sp, 3), dir = vx < 0 ? -1 : 1;
+      const af = Math.atan2(vy + A * r, vxs) - delta * dir;
+      const ar = Math.atan2(vy - B * r, vxs);
+      const Fyf = -mu * Fzf * kf * tyre(af), Fyr = -mu * Fzr * kr * tyre(ar);
+      ay = (Fyf * cd + Fyr) / M;
+      vy += (ay - vx * r) * h;
+      r += (A * Fyf * cd - B * Fyr) / phys.Iz * h;
+      // drift assist: like stability control, it will not let the car rotate faster than it can be caught
+      if (env.assist && sp > 5) { const rSafe = 1.25 * mu * G / sp + 0.25; if (Math.abs(r) > rSafe) r -= (r - Math.sign(r) * rSafe) * Math.min(1, 4 * h); }
+      vx += (vy * r - Fyf * sd / M) * h;
+      // walking pace: the car simply follows its wheels
+      if (sp < 4) {
+        const k = THREE.MathUtils.clamp((sp - 1) / 3, 0, 1);
+        r = k * r + (1 - k) * vx * Math.tan(delta) / L;
+        vy *= 0.5 + 0.5 * k;
+      }
+    }
+    if (off) vy *= 1 - Math.min(1, 1.5 * dt);              // grass digs in sideways
+    st.v = vx; st.vl = -vy; st.yaw = r;
+    st.ay += (ay - st.ay) * (1 - Math.exp(-dt * 8));
+    st.ax += (aLong - st.ax) * (1 - Math.exp(-dt * 6));
+    st.spinR = spin;
     const yaw = st.yaw;
 
-    // world velocity keeps its direction while the car rotates underneath it
-    const oldF = new THREE.Vector3(Math.cos(st.heading), 0, -Math.sin(st.heading));
-    const oldR = new THREE.Vector3(Math.sin(st.heading), 0, Math.cos(st.heading));
-    const vel = oldF.multiplyScalar(st.v).addScaledVector(oldR, st.vl);
     st.heading += yaw * dt;
     fwd.set(Math.cos(st.heading), 0, -Math.sin(st.heading));
     const right = new THREE.Vector3(Math.sin(st.heading), 0, Math.cos(st.heading));
-    st.v = vel.dot(fwd); st.vl = vel.dot(right);
-    const lost = st.vl * (1 - Math.exp(-grip * dt));      // sideways speed the tyres scrub off
-    st.vl -= lost;
-    st.v -= Math.sign(st.v) * Math.min(Math.abs(st.v), Math.abs(lost) * 0.15);
     st.x += (fwd.x * st.v + right.x * st.vl) * dt;
     st.z += (fwd.z * st.v + right.z * st.vl) * dt;
 
@@ -1085,7 +1151,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       st.shake = Math.min(1, impact / 15);
       if (engine && st.sound) engine.thud(impact / 15);
       buzz(Math.round(30 + Math.min(1, impact / 15) * 90));
-      if (st.drift > 0) { st.drift = 0; flash('დაიკარგა!'); }
+      if (st.drift > 0) { st.drift = 0; st.driftT = 0; flash('დაიკარგა!'); }
     }
     // laps: crossing index 0 after passing the far side of the track
     const prev = st.idx;
@@ -1116,9 +1182,12 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     // car transform + cosmetic body roll / pitch
     car.root.position.set(st.x, st.y, st.z);
     car.root.rotation.set(0, st.heading, pitch);
-    const lat = st.v * st.yaw, lon = throttle ? 1 : brake ? -1.6 : 0;
-    st.roll += (THREE.MathUtils.clamp(-lat * 0.006, -0.06, 0.06) - st.roll) * (1 - Math.exp(-dt * 6));
-    st.pitch += (lon * 0.012 - st.pitch) * (1 - Math.exp(-dt * 5));
+    st.roll += (THREE.MathUtils.clamp(-st.ay * 0.0055, -0.06, 0.06) - st.roll) * (1 - Math.exp(-dt * 6));
+    st.pitch += (THREE.MathUtils.clamp(st.ax * 0.0024, -0.035, 0.025) - st.pitch) * (1 - Math.exp(-dt * 5));
+    // road wheels: the front ones steer, all of them roll; spinning driven wheels turn faster
+    st.wheelF += st.v * dt / phys.r * (phys.drive !== 'rwd' ? 1 + st.spinR * 2.5 : 1);
+    st.wheelR += st.v * dt / phys.r * (phys.drive !== 'fwd' ? 1 + st.spinR * 2.5 : 1) * (keys.hand ? 0 : 1) + (keys.hand ? 0 : st.spinR * 14 * dt * (phys.drive !== 'fwd' ? 1 : 0));
+    if (car.setWheels) car.setWheels(st.steer, st.wheelF, st.wheelR);
     car.body.rotation.set(st.roll, 0, st.pitch);
     if (car.setSteer) car.setSteer(st.steer * 7);            // steering wheel: ~7x the road-wheel angle
 
@@ -1126,28 +1195,31 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     const slipNow = Math.atan2(st.vl, Math.max(Math.abs(st.v), 1));
     const drifting = !off && Math.abs(slipNow) > 0.22 && st.v > 8;
     if (drifting) {
-      st.drift += Math.abs(slipNow) * st.v * dt * 6;
+      st.driftT += dt;
+      const mult = 1 + Math.min(1, st.driftT / 4);          // long, clean slides score up to double
+      st.drift += Math.abs(slipNow) * st.v * dt * 6 * mult;
       st.driftIdle = 0;
     } else if (st.drift > 0 && (st.driftIdle += dt) > 0.7) {
       const pts = Math.round(st.drift);
       st.score += pts;
       if (pts > st.driftBest) { st.driftBest = pts; saveRecord(recKey(modelId, trackId), { drift: pts }); }
       flash(`+${pts}`);
-      st.drift = 0;
+      st.drift = 0; st.driftT = 0;
     }
-    const skidding = (drifting || (keys.hand && Math.abs(st.v) > 4) || (brake && st.v > 14)) && !off;
+    const burnout = st.spinR > 0.15 && phys.drive !== 'fwd';
+    const skidding = (drifting || burnout || (keys.hand && Math.abs(st.v) > 4) || (brake && st.v > 14 && Math.abs(st.ax) > mu * 8.5)) && !off;
     const rx = car.model.wheel.x[1], hw = car.size.z * 0.38;
     for (const s of [1, -1]) {
       const wx = st.x + fwd.x * rx + right.x * hw * s, wz = st.z + fwd.z * rx + right.z * hw * s;
       const wy = st.y + sPitch * rx;
       track.skids.mark(s, wx, wy, wz, right.x, right.z, skidding);
-      if (drifting && (st.smokeT += dt) > 0.035) track.smoke.puff(wx, wy, wz, Math.min(1, Math.abs(slipNow)));
+      if ((drifting || burnout) && (st.smokeT += dt) > 0.035) track.smoke.puff(wx, wy, wz, Math.min(1, Math.abs(slipNow) + st.spinR));
     }
     if (st.smokeT > 0.035) st.smokeT = 0;
     track.smoke.update(dt);
     if (engine) engine.squeal(st.sound && skidding ? Math.min(1, Math.abs(slipNow) * 1.6 + (keys.hand ? 0.3 : 0)) : 0);
     const dEl = hud.querySelector('#dhDrift');
-    if (st.drift > 0) { hud.querySelector('#dhDriftPts').textContent = Math.round(st.drift); hud.querySelector('#dhDriftLbl').textContent = 'დრიფტი'; dEl.classList.add('on'); }
+    if (st.drift > 0) { hud.querySelector('#dhDriftPts').textContent = Math.round(st.drift); hud.querySelector('#dhDriftLbl').textContent = `დრიფტი ${Math.round(Math.abs(slipNow) * 57.3)}° ×${(1 + Math.min(1, st.driftT / 4)).toFixed(1)}`; dEl.classList.add('on'); }
     else if (!dEl.dataset.flash) dEl.classList.remove('on');
     hud.querySelector('#dhScore').textContent = st.score;
     hud.querySelector('#dhDriftBest').textContent = st.driftBest;
