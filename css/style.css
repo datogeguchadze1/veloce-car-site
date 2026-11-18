@@ -160,7 +160,7 @@ body.driving .stage { height: auto; min-height: 0 }
 #dhMode { font-family: Orbitron, sans-serif; font-weight: 900; min-width: 40px }
 .drive-hud.manual #dhMode { background: #ffb03a; color: #111; border-color: #ffb03a }
 .dh-shift { display: none !important }
-#dhGhost.on, #dhNight.on, #dhRain.on { background: #4fb3ff; color: #031320; border-color: #4fb3ff }
+#dhGhost.on, #dhNight.on, #dhRain.on, #dhAssist.on { background: #4fb3ff; color: #031320; border-color: #4fb3ff }
 .dh-delta { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); font-size: 1.6rem; font-weight: 900; opacity: 0; transition: opacity .25s; padding: 4px 12px; border-radius: 10px; background: #0008 }
 .dh-delta.on { opacity: 1 }
 .dh-delta.fast { color: #5dff8f }
