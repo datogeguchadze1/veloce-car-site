@@ -595,6 +595,7 @@ function buildHud(stage) {
         <button id="dhTrack" title="ტრასის შეცვლა (T)">🗺</button>
         <button id="dhTilt" class="touch-only" title="დახრით მართვა">📱</button>
         <button id="dhMode" title="გადაცემათა კოლოფი: ავტომატი / მექანიკა (M)">A</button>
+        <button id="dhHelmet" title="მძღოლის ჩაფხუტი (Y)">🪖</button>
         <button id="dhAssist" title="დრიფტის დამხმარე: კონტრ-საჭე თავისით (H)">🅳</button>
         <button id="dhGhost" title="მოჩვენება: საუკეთესო წრე (G)">👻</button>
         <button id="dhNight" title="დღე / ღამე (N)">🌙</button>
@@ -606,6 +607,7 @@ function buildHud(stage) {
       </div>
     </div>
     <div class="dh-speedfx" id="dhFx"></div>
+    <div class="dh-visor" id="dhVisor"></div>
     <div class="dh-delta" id="dhDelta"></div>
     <div class="dh-input"><span>გაზი<i><b id="dhInGas"></b></i></span><span>მუხრუჭი<i><b id="dhInBrake"></b></i></span><em id="dhInHand">ხელის<br>მუხრუჭი</em></div>
     <div class="dh-drift" id="dhDrift"><b id="dhDriftPts">0</b><small id="dhDriftLbl">დრიფტი</small></div>
@@ -613,7 +615,7 @@ function buildHud(stage) {
       <div class="dh-rpm"><i id="dhRpm"></i></div>
       <span class="dh-gear" id="dhGear">1</span><b id="dhSpd">0</b><small>კმ/სთ</small><i id="dhOff">ბალახი</i>
     </div>
-    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · T ტრასა · H დრიფტის დამხმარე · G მოჩვენება · N ღამე · B წვიმა · R ტრასაზე · Esc გასვლა</p>
+    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · T ტრასა · H დრიფტის დამხმარე · Y ჩაფხუტი · G მოჩვენება · N ღამე · B წვიმა · R ტრასაზე · Esc გასვლა</p>
     <div class="dh-touch">
       <div class="dh-steer"><button data-k="left" aria-label="მარცხნივ">◀</button><button data-k="right" aria-label="მარჯვნივ">▶</button></div>
       <div class="dh-shift"><button data-shift="1">＋</button><button data-shift="-1">－</button></div>
@@ -722,6 +724,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     else if (e.code === 'KeyT') choose(car, curModel);
     else if (e.code === 'KeyG') setGhost(!env.ghost);
     else if (e.code === 'KeyH') setAssist(!env.assist);
+    else if (e.code === 'KeyY') setHelmet(!env.helmet);
     else if (e.code === 'KeyN') setEnv({ night: !env.night });
     else if (e.code === 'KeyB') setEnv({ rain: !env.rain });
     else if (e.code === 'KeyM') setManual(!st.manual);
@@ -765,7 +768,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
 
   const pref = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v === '1'; } catch { return d; } };
   const savePref = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* private mode */ } };
-  const env = { night: pref('veloce-night', false), rain: pref('veloce-rain', false), ghost: pref('veloce-ghost', true), assist: pref('veloce-assist', true) };
+  const env = { night: pref('veloce-night', false), rain: pref('veloce-rain', false), ghost: pref('veloce-ghost', true), assist: pref('veloce-assist', true), helmet: pref('veloce-helmet', true) };
   let sceneLights = [];      // the showroom's own lights, dimmed at night / in the rain
   let modelId = null, ghost = null, record = null, trace = [], traceT = 0, sectors = [], headLights = null;
   let trackId = 'circuit', curModel = null, picker = null;
@@ -808,6 +811,11 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     track.poles.visible = n || track.id === 'city';
     for (const m of track.windows) m.emissiveIntensity = n ? 1.1 : r ? 0.15 : 0;
     if (hud) { hud.querySelector('#dhNight').classList.toggle('on', n); hud.querySelector('#dhRain').classList.toggle('on', r); }
+  }
+  function setHelmet(on) {
+    env.helmet = on; savePref('veloce-helmet', on);
+    if (driver) driver.setHelmet(on);
+    if (hud) hud.querySelector('#dhHelmet').classList.toggle('on', on);
   }
   function setAssist(on) {
     env.assist = on; savePref('veloce-assist', on);
@@ -983,6 +991,8 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     trace = []; traceT = 0; sectors = [];
     hud.querySelector('#dhGhost').onclick = () => setGhost(!env.ghost);
     hud.querySelector('#dhAssist').onclick = () => setAssist(!env.assist);
+    hud.querySelector('#dhHelmet').onclick = () => setHelmet(!env.helmet);
+    setHelmet(env.helmet);
     setAssist(env.assist);
     hud.querySelector('#dhNight').onclick = () => setEnv({ night: !env.night });
     hud.querySelector('#dhRain').onclick = () => setEnv({ rain: !env.rain });
@@ -1221,6 +1231,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     car.body.rotation.set(st.roll, 0, st.pitch);
     if (car.setSteer) car.setSteer(st.steer * 7);            // steering wheel: ~7x the road-wheel angle
     if (driver) { driver.update(st.steer * 7); driver.setCockpit(st.cam === 'cockpit'); }
+    hud.querySelector('#dhVisor').classList.toggle('on', st.cam === 'cockpit' && env.helmet);
 
     // ---- drifting: points, skid marks, smoke, squeal ----
     const slipNow = Math.atan2(st.vl, Math.max(Math.abs(st.v), 1));
