@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createEngineSound, engineSpec } from './engineSound.js';
 import { createDriver } from './driver.js';
+import { createMirrors } from './mirrors.js';
 import { makeSky, makeClouds, makeHorizon, asphaltTexture, grassTexture, circuitDetails, circuitWallTexture, cityDetails, cityBlockExtras, mountainDetails, roundTrees } from './scenery.js';
 
 /* ---------- deterministic random (same scenery every visit) ---------- */
@@ -435,7 +436,7 @@ function buildTrack(id = 'circuit') {
   const clouds = makeClouds(mid, rand); group.add(clouds.group);
   const horizon = makeHorizon(id, mid, rand); group.add(horizon.group);
   windows.push(...horizon.nightMats);
-  return { id, group, center, tangents, nrm, N, length, wall: WALL, roadW: ROAD_W, start: { x: c0.x, y: c0.y, z: c0.z, heading: heading0 }, road, runoff, hemi, lamps, poles, windows, sky, clouds };
+  return { id, group, center, tangents, nrm, N, length, wall: WALL, roadW: ROAD_W, start: { x: c0.x, y: c0.y, z: c0.z, heading: heading0 }, road, runoff, hemi, lamps, poles, windows, sky, clouds, heightAt: mountain ? heightAt : null };
 }
 
 /* ---------- skid marks & tyre smoke ---------- */
@@ -595,6 +596,8 @@ function buildHud(stage) {
         <button id="dhTrack" title="ტრასის შეცვლა (T)">🗺</button>
         <button id="dhTilt" class="touch-only" title="დახრით მართვა">📱</button>
         <button id="dhMode" title="გადაცემათა კოლოფი: ავტომატი / მექანიკა (M)">A</button>
+        <button id="dhReplayBtn" title="განმეორება: ბოლო წრე ტელეკამერებიდან (P)">⏪</button>
+        <button id="dhMirrors" title="სარკეები სალონის ხედში (V)">🪞</button>
         <button id="dhHelmet" title="მძღოლის ჩაფხუტი (Y)">🪖</button>
         <button id="dhAssist" title="დრიფტის დამხმარე: კონტრ-საჭე თავისით (H)">🅳</button>
         <button id="dhGhost" title="მოჩვენება: საუკეთესო წრე (G)">👻</button>
@@ -608,6 +611,15 @@ function buildHud(stage) {
     </div>
     <div class="dh-speedfx" id="dhFx"></div>
     <div class="dh-visor" id="dhVisor"></div>
+    <div class="dh-replay" id="dhReplay">
+      <b class="dh-rec">● REPLAY</b>
+      <button data-r="play" title="პაუზა (Space)">⏸</button>
+      <button data-r="speed" title="სიჩქარე">1×</button>
+      <button data-r="cam" title="კამერა (C)">📺 ტელე</button>
+      <div class="dh-rbar" data-r="bar"><i></i></div>
+      <span class="dh-rtime" id="dhRtime">0:00</span>
+      <button data-r="exit" title="დაბრუნება (P / Esc)">✕ დაბრუნება</button>
+    </div>
     <div class="dh-delta" id="dhDelta"></div>
     <div class="dh-input"><span>გაზი<i><b id="dhInGas"></b></i></span><span>მუხრუჭი<i><b id="dhInBrake"></b></i></span><em id="dhInHand">ხელის<br>მუხრუჭი</em></div>
     <div class="dh-drift" id="dhDrift"><b id="dhDriftPts">0</b><small id="dhDriftLbl">დრიფტი</small></div>
@@ -615,7 +627,7 @@ function buildHud(stage) {
       <div class="dh-rpm"><i id="dhRpm"></i></div>
       <span class="dh-gear" id="dhGear">1</span><b id="dhSpd">0</b><small>კმ/სთ</small><i id="dhOff">ბალახი</i>
     </div>
-    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · T ტრასა · H დრიფტის დამხმარე · Y ჩაფხუტი · G მოჩვენება · N ღამე · B წვიმა · R ტრასაზე · Esc გასვლა</p>
+    <p class="dh-help">W/↑ გაზი · S/↓ მუხრუჭი · A D / ← → საჭე · Space ხელის მუხრუჭი (დრიფტი) · M მექანიკა (E ▲ / Q ▼) · C კამერა · P განმეორება · V სარკეები · T ტრასა · H დრიფტის დამხმარე · Y ჩაფხუტი · G მოჩვენება · N ღამე · B წვიმა · R ტრასაზე · Esc გასვლა</p>
     <div class="dh-touch">
       <div class="dh-steer"><button data-k="left" aria-label="მარცხნივ">◀</button><button data-k="right" aria-label="მარჯვნივ">▶</button></div>
       <div class="dh-shift"><button data-shift="1">＋</button><button data-shift="-1">－</button></div>
@@ -694,7 +706,13 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     document.body.classList.remove('forced-landscape');
   }
   const st = { popT: 0, handWas: 0, fxK: 0, manual: false, vl: 0, yaw: 0, shake: 0, drift: 0, driftIdle: 0, score: 0, driftBest: 0, smokeT: 0, gear: 1, rpm: 900, shift: 0, active: false, x: 0, z: 0, heading: 0, v: 0, steer: 0, idx: 0, lapStart: 0, best: null, armed: false, cam: 'chase', sound: false, time: 0, roll: 0, pitch: 0 };
-  let perf, wheelbase, redline, spec, phys, driver = null;
+  let perf, wheelbase, redline, spec, phys, driver = null, mirrors = null;
+  /* ---------- replay: the last two minutes, 30 samples a second ---------- */
+  const REC_HZ = 30, REC_CAP = 120 * REC_HZ, REC_F = 15;   // fields: t x y z heading pitch roll bodyPitch steer wheelF wheelR v rpm load slip
+  const rec = { buf: new Float32Array(REC_CAP * REC_F), n: 0, acc: 0, laps: [] };
+  const rp = { on: false, from: 0, to: 0, t: 0, speed: 1, paused: false, cam: 0, tv: -1, idx: 0, ang: 0, look: new THREE.Vector3() };
+  const RP_CAMS = ['📺 ტელე', '🎥 უკნიდან', '🚁 ვერტმფრენი', '🪖 ბორტზე', '⚙ ბორბალთან'];
+  let tvCams = [];
   // weight distribution (share on the rear axle) for cars whose engine sits behind the driver or far back
   const REAR_SHARE = { f40: 0.58, huracan: 0.58, r8: 0.58, gt3rs: 0.61, p930: 0.6, p911ts: 0.61, sls: 0.53, amggt: 0.53, golf1: 0.38, gtr: 0.46 };
   // chassis numbers for the tyre model: mass, axle distances, grip, centre of gravity height, yaw inertia
@@ -717,6 +735,14 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
   const onKey = down => e => {
     if (!st.active) return;
     if (picker) { if (down && e.code === 'Escape') { picker.close(); picker = null; st.paused = false; } return; }
+    if (rp.on) {
+      if (!down) return;
+      e.preventDefault();
+      if (e.code === 'Escape' || e.code === 'KeyP') stopReplay();
+      else if (e.code === 'KeyC') hud.querySelector('[data-r="cam"]').dispatchEvent(new Event('pointerdown'));
+      else if (e.code === 'Space') hud.querySelector('[data-r="play"]').dispatchEvent(new Event('pointerdown'));
+      return;
+    }
     if (keyMap[e.code]) { keys[keyMap[e.code]] = down ? 1 : 0; e.preventDefault(); return; }
     if (!down) return;
     if (e.code === 'Escape') stop();
@@ -725,6 +751,8 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     else if (e.code === 'KeyG') setGhost(!env.ghost);
     else if (e.code === 'KeyH') setAssist(!env.assist);
     else if (e.code === 'KeyY') setHelmet(!env.helmet);
+    else if (e.code === 'KeyV') setMirrors(!env.mirrors);
+    else if (e.code === 'KeyP') startReplay();
     else if (e.code === 'KeyN') setEnv({ night: !env.night });
     else if (e.code === 'KeyB') setEnv({ rain: !env.rain });
     else if (e.code === 'KeyM') setManual(!st.manual);
@@ -768,7 +796,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
 
   const pref = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v === '1'; } catch { return d; } };
   const savePref = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* private mode */ } };
-  const env = { night: pref('veloce-night', false), rain: pref('veloce-rain', false), ghost: pref('veloce-ghost', true), assist: pref('veloce-assist', true), helmet: pref('veloce-helmet', true) };
+  const env = { night: pref('veloce-night', false), rain: pref('veloce-rain', false), ghost: pref('veloce-ghost', true), assist: pref('veloce-assist', true), helmet: pref('veloce-helmet', true), mirrors: pref('veloce-mirrors', true) };
   let sceneLights = [];      // the showroom's own lights, dimmed at night / in the rain
   let modelId = null, ghost = null, record = null, trace = [], traceT = 0, sectors = [], headLights = null;
   let trackId = 'circuit', curModel = null, picker = null;
@@ -811,6 +839,53 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     track.poles.visible = n || track.id === 'city';
     for (const m of track.windows) m.emissiveIntensity = n ? 1.1 : r ? 0.15 : 0;
     if (hud) { hud.querySelector('#dhNight').classList.toggle('on', n); hud.querySelector('#dhRain').classList.toggle('on', r); }
+  }
+  function setMirrors(on) {
+    env.mirrors = on; savePref('veloce-mirrors', on);
+    if (hud) hud.querySelector('#dhMirrors').classList.toggle('on', on);
+  }
+  function recordFrame(dt, load, slip) {
+    rec.acc += dt;
+    if (rec.acc < 1 / REC_HZ) return;
+    rec.acc -= 1 / REC_HZ;
+    const o = (rec.n % REC_CAP) * REC_F;
+    rec.buf.set([st.time, st.x, st.y, st.z, st.heading, Math.atan(st.grade), st.roll, st.pitch, st.steer, st.wheelF, st.wheelR, st.v, st.rpm, load, slip], o);
+    rec.n++;
+  }
+  const recAt = (k, f) => rec.buf[(k % REC_CAP) * REC_F + f];
+  // the stretch to replay: the last full lap if it is still in the buffer, else the last 30 seconds
+  function replayRange() {
+    const first = Math.max(0, rec.n - REC_CAP), L = rec.laps;
+    if (L.length >= 2 && L[L.length - 2] >= first) return [L[L.length - 2], L[L.length - 1]];
+    return [Math.max(first, rec.n - 30 * REC_HZ), rec.n - 1];
+  }
+  function startReplay() {
+    if (rp.on || rec.n < REC_HZ * 2) return;
+    [rp.from, rp.to] = replayRange();
+    rp.on = true; rp.t = 0; rp.paused = false; rp.speed = 1; rp.tv = -1; rp.idx = st.idx;
+    Object.keys(keys).forEach(k => (keys[k] = 0));
+    hud.classList.add('replaying');
+    hud.querySelector('[data-r="play"]').textContent = '⏸';
+    hud.querySelector('[data-r="speed"]').textContent = '1×';
+    hud.querySelector('[data-r="cam"]').textContent = RP_CAMS[rp.cam];
+  }
+  function stopReplay() {
+    if (!rp.on) return;
+    rp.on = false;
+    hud.classList.remove('replaying');
+    camera.fov = 62; camera.updateProjectionMatrix();
+    update(0, true);                                         // back to the car where it was, camera snapped behind it
+  }
+  // fixed television cameras around the track, outside the barriers, alternating sides
+  function placeTvCams() {
+    tvCams = [];
+    const W = track.wall;
+    for (let i = 30, s = 1; i < track.N; i += 75, s = -s) {
+      const c = track.center[i], [nx, nz] = track.nrm[i];
+      const off = track.id === 'city' ? W + 2.2 : W + 11, x = c.x + nx * s * off, z = c.z + nz * s * off;
+      const ground = track.heightAt ? Math.max(c.y, track.heightAt(x, z)) : c.y;
+      tvCams.push(new THREE.Vector3(x, ground + (track.id === 'city' ? 7 : 5.5), z));
+    }
   }
   function setHelmet(on) {
     env.helmet = on; savePref('veloce-helmet', on);
@@ -992,6 +1067,26 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     hud.querySelector('#dhGhost').onclick = () => setGhost(!env.ghost);
     hud.querySelector('#dhAssist').onclick = () => setAssist(!env.assist);
     hud.querySelector('#dhHelmet').onclick = () => setHelmet(!env.helmet);
+    hud.querySelector('#dhMirrors').onclick = () => setMirrors(!env.mirrors);
+    setMirrors(env.mirrors);
+    hud.querySelector('#dhReplayBtn').onclick = () => (rp.on ? stopReplay() : startReplay());
+    hud.querySelectorAll('[data-r]').forEach(el => el.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const r = el.dataset.r;
+      if (r === 'play') { rp.paused = !rp.paused; el.textContent = rp.paused ? '▶' : '⏸'; }
+      else if (r === 'speed') { rp.speed = rp.speed === 1 ? 0.5 : rp.speed === 0.5 ? 0.25 : 1; el.textContent = `${rp.speed}×`; }
+      else if (r === 'cam') { rp.cam = (rp.cam + 1) % RP_CAMS.length; rp.tv = -1; el.textContent = RP_CAMS[rp.cam]; }
+      else if (r === 'exit') stopReplay();
+      else if (r === 'bar') {
+        const box = el.getBoundingClientRect(), forced = document.body.classList.contains('forced-landscape');
+        const f = forced ? (e.clientY - box.top) / box.height : (e.clientX - box.left) / box.width;
+        rp.t = THREE.MathUtils.clamp(f, 0, 1) * (recAt(rp.to, 0) - recAt(rp.from, 0));
+      }
+    }));
+    rec.n = 0; rec.acc = 0; rec.laps = []; rp.on = false;
+    placeTvCams();
+    camera.layers.enable(1);                                 // the driver lives on layer 1 so the mirrors skip him
+    mirrors = createMirrors();
     setHelmet(env.helmet);
     setAssist(env.assist);
     hud.querySelector('#dhNight').onclick = () => setEnv({ night: !env.night });
@@ -1028,6 +1123,8 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     for (const [l, base] of sceneLights) l.intensity = base;
     sceneLights = [];
     if (driver) { driver.dispose(); driver = null; }
+    if (mirrors) { mirrors.dispose(); mirrors = null; }
+    rp.on = false;
     if (headLights) { car.root.remove(headLights); headLights.traverse(o => { if (o.dispose) o.dispose(); }); headLights = null; }
     ghost = null;
     Object.assign(keyLight.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 20 });
@@ -1050,6 +1147,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
   function update(dt, snap = false) {
     if (!st.active || st.paused) return;
     dt = Math.max(dt, 1e-4);                                 // the snap call on start passes 0
+    if (rp.on) { replayStep(dt); return; }
     st.time += dt;
     const WALL = track.wall;
     const vmax = perf.vmax / 3.6;
@@ -1211,6 +1309,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       }
       st.lapStart = st.time; st.armed = false;
       trace = []; traceT = 0; sectors = [];
+      rec.laps.push(rec.n); if (rec.laps.length > 20) rec.laps.shift();
     }
 
     // road height under the car, and the slope along the car's heading
@@ -1377,8 +1476,89 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
       }
     }
     track.flames.update(dt);
+    recordFrame(dt, load, Math.abs(slipNow));
+  }
+
+  /* ---------- replay playback ---------- */
+  function replayStep(dt) {
+    const t0 = recAt(rp.from, 0), dur = Math.max(0.1, recAt(rp.to, 0) - t0);
+    if (!rp.paused) { rp.t += dt * rp.speed; if (rp.t > dur) rp.t = 0; }
+    // find the two samples around the cursor and blend them
+    const want = t0 + rp.t;
+    let k = rp.from + Math.floor(rp.t * REC_HZ);
+    k = Math.max(rp.from, Math.min(rp.to - 1, k));
+    while (k > rp.from && recAt(k, 0) > want) k--;
+    while (k < rp.to - 1 && recAt(k + 1, 0) < want) k++;
+    const ta = recAt(k, 0), tb = recAt(k + 1, 0), a = tb > ta ? THREE.MathUtils.clamp((want - ta) / (tb - ta), 0, 1) : 0;
+    const v = f => recAt(k, f) + (recAt(k + 1, f) - recAt(k, f)) * a;
+    let h0 = recAt(k, 4), h1 = recAt(k + 1, 4); h1 = h0 + Math.atan2(Math.sin(h1 - h0), Math.cos(h1 - h0));
+    const x = v(1), y = v(2), z = v(3), heading = h0 + (h1 - h0) * a, pitch = v(5), steer = v(8), speed = v(11), rpm = v(12), load = v(13), slip = v(14);
+    car.root.position.set(x, y, z);
+    car.root.rotation.set(0, heading, pitch);
+    car.body.rotation.set(v(6), 0, v(7));
+    if (car.setWheels) car.setWheels(steer, v(9), v(10));
+    if (car.setSteer) car.setSteer(steer * 7);
+    if (car.setGauges) car.setGauges(Math.abs(speed) * 3.6, rpm);
+    if (driver) { driver.update(steer * 7); driver.setCockpit(rp.cam === 3); }
+    hud.querySelector('#dhVisor').classList.toggle('on', rp.cam === 3 && env.helmet);
+    if (engine) { engine.set(rpm, load, st.sound); engine.squeal(st.sound && slip > 0.22 && speed > 8 ? Math.min(1, slip * 1.6) : 0); }
+    // tyre smoke on slides
+    const fx = Math.cos(heading), fz = -Math.sin(heading), rxx = Math.sin(heading), rzz = Math.cos(heading);
+    if (slip > 0.22 && speed > 8 && !rp.paused && (st.smokeT += dt) > 0.04) {
+      st.smokeT = 0;
+      const rx = car.model.wheel.x[1], hw = car.size.z * 0.38;
+      for (const sd of [1, -1]) track.smoke.puff(x + fx * rx + rxx * hw * sd, y, z + fz * rx + rzz * hw * sd, Math.min(1, slip));
+    }
+    track.smoke.update(rp.paused ? 0 : dt);
+    keyLight.position.set(x + 8, y + 16, z + 10); keyLight.target.position.set(x, y, z);
+    rp.idx = nearestIdx(x, z, rp.idx).i;
+    // ---- cameras ----
+    const target = new THREE.Vector3(x, y + car.size.y * 0.45, z);
+    let fov = 50;
+    if (rp.cam === 0) {                        // television: the nearest fixed camera, zooming to keep the car a similar size
+      let best = 0, bd = Infinity;
+      tvCams.forEach((c, i) => { const d = c.distanceTo(target); if (d < bd) { bd = d; best = i; } });
+      if (rp.tv < 0 || bd < tvCams[rp.tv].distanceTo(target) * 0.7) { rp.tv = best; rp.look.copy(target); }
+      const cam = tvCams[rp.tv], dist = cam.distanceTo(target);
+      camera.position.copy(cam);
+      rp.look.lerp(target, 1 - Math.exp(-dt * 6));
+      camera.lookAt(rp.look);
+      fov = THREE.MathUtils.clamp(2 * Math.atan(7.5 / dist) * 57.3, 6, 55);
+    } else if (rp.cam === 1) {                 // chase
+      const back = car.size.x * 1.15 + 3.2;
+      camera.position.lerp(new THREE.Vector3(x - fx * back, y + car.size.y + 1.25, z - fz * back), rp.tv === -2 ? 1 - Math.exp(-dt * 5) : 1);
+      rp.tv = -2;
+      camera.lookAt(x + fx * 4, y + car.size.y * 0.6, z + fz * 4); fov = 62;
+    } else if (rp.cam === 2) {                 // helicopter, slowly circling
+      rp.ang += dt * 0.18;
+      camera.position.set(x + Math.cos(rp.ang) * 24, y + 17, z + Math.sin(rp.ang) * 24);
+      camera.lookAt(target); fov = 45;
+    } else if (rp.cam === 3) {                 // onboard, from the driver's eyes
+      const eye = car.body.localToWorld(car.driverEye.clone());
+      camera.position.copy(eye);
+      camera.lookAt(eye.x + fx * 10, eye.y - 0.6, eye.z + fz * 10); fov = 62;
+    } else {                                   // low, next to a front wheel
+      const sd = car.driverEye.z < 0 ? 1 : -1, half = car.size.z / 2;   // on the passenger-side flank, looking forward past the front wheel
+      camera.position.copy(car.root.localToWorld(new THREE.Vector3(car.model.wheel.x[1] + 0.4, 0.42, sd * (half + 0.32))));
+      camera.lookAt(car.root.localToWorld(new THREE.Vector3(car.model.wheel.x[0] + 4, 0.28, sd * (half - 0.15)))); fov = 60;
+    }
+    if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    track.sky.mesh.position.copy(camera.position);
+    track.rain.update(rp.paused ? 0 : dt, camera.position, fx * speed, fz * speed);
+    // HUD
+    hud.querySelector('#dhSpd').textContent = Math.round(Math.abs(speed) * 3.6);
+    hud.querySelector('.dh-rbar i').style.width = `${(rp.t / dur * 100).toFixed(1)}%`;
+    const fmtS = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+    hud.querySelector('#dhRtime').textContent = `${fmtS(rp.t)} / ${fmtS(dur)}`;
+    const bar = hud.querySelector('#dhRpm'); bar.style.width = `${Math.min(100, rpm / redline * 100)}%`;
   }
 
   // debug hook used by the automated test driver
-  return { start, stop, update, choose, get active() { return st.active; }, get track() { return trackId; }, get debug() { return { st, track, keys, env, setEnv }; } };
+  // called by main.js after the frame is drawn: working mirrors in the cockpit view
+  function afterRender(renderer) {
+    if (!st.active || !mirrors || !env.mirrors || rp.on || st.cam !== 'cockpit' || picker) return;
+    mirrors.render(renderer, scene, car);
+  }
+
+  return { start, stop, update, choose, afterRender, get active() { return st.active; }, get track() { return trackId; }, get debug() { return { st, track, keys, env, setEnv, rp, rec, startReplay, stopReplay }; } };
 }
