@@ -372,6 +372,7 @@ renderer.setAnimationLoop(t => {
   if (drive.active) drive.update(dt);
   else controls.update();
   renderer.render(scene, camera);
+  if (drive.active) drive.afterRender(renderer);
 });
 
 /* ---------- boot ---------- */

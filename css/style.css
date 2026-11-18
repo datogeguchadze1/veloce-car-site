@@ -265,3 +265,17 @@ body.driving.forced-landscape .stage { inset: auto; top: 0; left: 0; width: 100d
               radial-gradient(ellipse 75% 95% at 50% 50%, rgba(0,0,0,0) 70%, rgba(5,7,10,.55) 100%) }
 .dh-visor.on { opacity: 1 }
 #dhHelmet.on { background: #4fb3ff; color: #031320; border-color: #4fb3ff }
+
+/* replay */
+.dh-replay { display: none; position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(760px, 92%); align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 14px; background: #000b; border: 1px solid #ffffff25; pointer-events: auto; font-family: 'Noto Sans Georgian', sans-serif; font-size: .82rem }
+.drive-hud.replaying .dh-replay { display: flex }
+.drive-hud.replaying .dh-touch, .drive-hud.replaying .dh-input, .drive-hud.replaying .dh-help, .drive-hud.replaying .dh-drift, .drive-hud.replaying .dh-delta { display: none !important }
+.dh-rec { color: #ff3b3b; letter-spacing: .08em; font-family: Orbitron, sans-serif; font-size: .78rem; animation: dhBlink 1.2s steps(2) infinite }
+@keyframes dhBlink { 50% { opacity: .35 } }
+.dh-replay button { background: #ffffff14; border: 1px solid #ffffff30; color: #fff; border-radius: 9px; padding: 6px 10px; font: inherit; cursor: pointer; white-space: nowrap }
+.dh-rbar { flex: 1; height: 8px; border-radius: 4px; background: #ffffff25; cursor: pointer; overflow: hidden; min-width: 60px }
+.dh-rbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff3b3b, #ffb03a) }
+.dh-rtime { font-family: Orbitron, sans-serif; font-size: .72rem; color: #cfd6e2; white-space: nowrap }
+#dhMirrors.on { background: #4fb3ff; color: #031320; border-color: #4fb3ff }
+@media (max-width: 760px), (max-height: 520px) { .dh-replay { bottom: 8px; padding: 6px 8px; gap: 5px; font-size: .72rem } .dh-replay button { padding: 5px 7px } }

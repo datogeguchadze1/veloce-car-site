@@ -169,6 +169,7 @@ export function createDriver(car) {
     }
   }
   update(0);
+  group.traverse(o => o.layers.set(1));                 // layer 1: seen by the main camera, not by the mirrors
   car.body.add(group);
 
   return {
