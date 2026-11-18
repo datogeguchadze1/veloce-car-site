@@ -134,6 +134,46 @@ function samplePoints(nodes, toBody, n) {
   return pts;
 }
 
+// Finds the steering wheel in a file that has it merged into the cabin: a ring-shaped piece
+// (about 0.3–0.45 m across, thin along the car) in front of the driver's eye. Every piece that
+// fits inside it (spokes, hub, badge) comes along. Returns new meshes cut out of the originals.
+function findSteeringWheel(meshes, toBody, eye, hint) {
+  const near = hint || new THREE.Box3(new THREE.Vector3(eye.x + 0.2, eye.y - 0.55, eye.z - 0.25), new THREE.Vector3(eye.x + 1.0, eye.y + 0.05, eye.z + 0.25));
+  const found = [];
+  let best = null;
+  for (const mesh of meshes) {
+    const mb = new THREE.Box3().setFromObject(mesh).applyMatrix4(toBody);
+    if (!mb.intersectsBox(near)) continue;
+    const pc = pieces(mesh, toBody);
+    found.push({ mesh, pc });
+    for (const [rk, c] of hint ? [] : pc.info) {
+      const s = c.box.getSize(new THREE.Vector3()), ctr = c.box.getCenter(new THREE.Vector3());
+      if (!near.containsPoint(ctr) || s.y < 0.26 || s.y > 0.46 || s.z < 0.26 || s.z > 0.46 || s.x > 0.22 || Math.abs(s.y - s.z) > 0.08) continue;
+      const score = Math.abs(ctr.z - eye.z) + Math.abs(s.z - 0.37) * 0.5;
+      if (!best || score < best.score) best = { score, box: c.box.clone().expandByScalar(0.015) };
+    }
+  }
+  if (hint) best = { box: hint };              // a box given in the config: everything inside it is the wheel
+  if (!best) return [];
+  const out = [];
+  for (const { mesh, pc } of found) {
+    const keep = new Set([...pc.info].filter(([, c]) => best.box.containsBox(c.box)).map(([r]) => r));
+    if (!keep.size) continue;
+    const mine = [], rest = [];
+    for (let t = 0; t < pc.tris; t++) (keep.has(pc.rootOf(t)) ? mine : rest).push(pc.at(t * 3), pc.at(t * 3 + 1), pc.at(t * 3 + 2));
+    const g = new THREE.BufferGeometry();
+    for (const [name, attr] of Object.entries(mesh.geometry.attributes)) g.setAttribute(name, attr);
+    g.setIndex(mine);
+    const part = new THREE.Mesh(g, mesh.material);
+    part.name = `${mesh.name}:steeringwheel`;
+    part.position.copy(mesh.position); part.quaternion.copy(mesh.quaternion); part.scale.copy(mesh.scale);
+    mesh.parent.add(part); part.updateMatrixWorld(true);
+    mesh.geometry = mesh.geometry.clone(); mesh.geometry.setIndex(rest);
+    out.push(part);
+  }
+  return out;
+}
+
 function triCount(mesh) {
   const g = mesh.geometry;
   return g.index ? g.index.count / 3 : g.attributes.position.count / 3;
@@ -361,7 +401,9 @@ export async function loadGlbCar(m, onProgress) {
   // Steering wheel: pivot at its centre, axis = the direction (in the
   // car's vertical plane) along which the wheel is thinnest, i.e. the column.
   let steer = null;
-  const steerNodes = findNodes(model, cfg.steer);
+  // no steering wheel named in the config: look for one (not for code-built cabins, which turn their own)
+  const defaultEye = cfg.eye ? new THREE.Vector3(...cfg.eye) : new THREE.Vector3(-0.02 * size.x, size.y * 0.8, -size.z * 0.22);
+  const steerNodes = cfg.steer ? findNodes(model, cfg.steer) : (!cfg.cabin && cfg.autoSteer !== false ? findSteeringWheel(meshes, toBody, defaultEye, cfg.steerBox ? box6(cfg.steerBox) : null) : []);
   if (steerNodes.length) {
     const pts = samplePoints(steerNodes, toBody, 600);
     const box = new THREE.Box3().setFromPoints(pts), c = box.getCenter(new THREE.Vector3());
@@ -374,7 +416,10 @@ export async function loadGlbCar(m, onProgress) {
     }
     const g = new THREE.Group(); g.name = 'pivot:steer'; g.position.copy(c); body.add(g);
     steerNodes.forEach(n => g.attach(n));
-    steer = { pivot: g, axis };
+    if (axis.x < 0) axis.negate();                         // the column points forward
+    let rad = 0; const v = new THREE.Vector3();
+    for (const p of pts) { v.copy(p).sub(c); rad = Math.max(rad, v.sub(axis.clone().multiplyScalar(v.dot(axis))).length()); }
+    steer = { pivot: g, axis, wheel: { center: c.clone(), axis: axis.clone(), radius: rad * 0.94 } };
   }
 
   // Gauge needles (speedo / tacho) that are separate parts: each turns about
@@ -537,6 +582,8 @@ export async function loadGlbCar(m, onProgress) {
     // steer: road-wheel angle (rad, + = left); spinF / spinR: how far the front / rear wheels have rolled (rad)
     setWheels(steer, spinF, spinR = spinF) { for (const w of rigs) { w.rig.rotation.y = w.front ? steer : 0; w.spin.rotation.z = -(w.front ? spinF : spinR); } },
     wheelRigs: rigs.length,
+    // steering wheel centre / column direction (forward) / rim radius, in body coordinates: where the driver's hands go
+    wheelGrip: steer ? steer.wheel : cabin && cabin.wheel ? cabin.wheel : null,
     setSteer(a) { if (steer) steer.pivot.quaternion.setFromAxisAngle(steer.axis, -a); if (cabin) cabin.setSteer(a); },
     setGauges(kmh, rpm) { turnGauge(gauges.speedo, Math.abs(kmh)); turnGauge(gauges.tacho, rpm); if (cabin) cabin.setGauges(kmh, rpm); },
     hasGauges: Object.keys(gauges).length > 0, gauges,
@@ -597,6 +644,6 @@ export async function loadGlbCar(m, onProgress) {
   };
   car.applyTuning(baseTuning);
   car.setGauges(0, 0);
-  console.info(`[glbCar] ${m.id}: ${meshes.length} meshes, ${doors.length} doors, hood ${!!hood}, trunk ${!!trunk}, wheels ${wheelNodes.length}, wheel rigs ${rigs.length}, size ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)} m`);
+  console.info(`[glbCar] ${m.id}: ${meshes.length} meshes, ${doors.length} doors, hood ${!!hood}, trunk ${!!trunk}, wheels ${wheelNodes.length}, wheel rigs ${rigs.length}, steering wheel ${steer ? (cfg.steer ? 'named' : 'found') : cabin && cabin.wheel ? 'cabin' : 'none'}, size ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)} m`);
   return car;
 }

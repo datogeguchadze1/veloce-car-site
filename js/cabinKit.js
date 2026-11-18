@@ -158,6 +158,7 @@ function createKit(paint) {
       if (hornRing) { const hr = new THREE.TorusGeometry(hornRing, 0.005, 8, 40); hr.rotateY(Math.PI / 2); hr.translate(-0.012, 0, 0); add(hr, mats.chrome, spin); }
       if (column) kit.cyl(0.022, column, 'x', columnMat, [column / 2 + 0.03, 0, 0], g);
       kit.steer = spin;
+      kit.wheelInfo = { center: pos, tilt, r };
       return { group: g, spin };
     },
   };
@@ -375,6 +376,8 @@ export function buildCabin(name, body, paint) {
     group: kit.group,
     eye: info.eye,
     interiorMats: info.noTrim ? [] : [kit.mats.leather, kit.mats.leatherPlain, kit.mats.carpet],   // follow the "interior colour" tuning
+    // the steering wheel's centre, column direction (pointing forward) and rim radius, for the driver's hands
+    wheel: kit.wheelInfo ? { center: new THREE.Vector3(...kit.wheelInfo.center), axis: new THREE.Vector3(Math.cos(kit.wheelInfo.tilt), -Math.sin(kit.wheelInfo.tilt), 0), radius: kit.wheelInfo.r } : null,
     setSteer(a) { if (kit.steer) kit.steer.rotation.x = -a; },
     setGauges(kmh, rpm) { turn(kit.needles.speedo, Math.abs(kmh)); turn(kit.needles.tacho, rpm); },
   };
