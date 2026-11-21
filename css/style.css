@@ -364,3 +364,9 @@ body.driving.forced-landscape .stage { inset: auto; top: 0; left: 0; width: 100d
 .tp-cards .tp-world { margin-top: 0; color: #9fd6ff; font-size: .72rem }
 .tp-cards .tp-world span { color: #b8c2d0 }
 @media (max-width: 860px) { .acct-btn { padding: 5px 11px; font-size: .78rem; max-width: 150px } }
+.acct-warn { border-color: #ffb03a88; color: #ffcf7a; background: #ffb03a14 }
+.db-hint { background: #4fb3ff14; border: 1px solid #4fb3ff44; border-radius: 10px; padding: 9px 11px; font-size: .86rem }
+.db-err { white-space: pre-wrap; word-break: break-word; font-size: .72rem; color: #ff9aa6; background: #0006; border-radius: 8px; padding: 8px 10px; max-height: 140px; overflow: auto }
+.mbox h3 { font-size: 1.05rem }
+.mbox p { font-size: .88rem }
+.mbox code { font-size: .78em; background: #0006; padding: 1px 4px; border-radius: 4px }

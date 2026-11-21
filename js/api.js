@@ -1,5 +1,5 @@
 // Client for the VELOCE Garage API (backend/Veloce.Api, ASP.NET Core + SQL Server).
-// The API lives under /api on the same site (Visual Studio serves both; on Netlify a proxy rule
+// The API lives under /api on the same site (Visual Studio serves both; on Vercel a rewrite in vercel.json
 // forwards /api). A <meta name="veloce-api" content="https://..."> tag points elsewhere.
 // When the API does not answer (e.g. GitHub Pages) `api.available` stays false and the site
 // works as before, with records and tunings kept in the browser only.
@@ -42,6 +42,8 @@ async function call(method, path, body) {
 
 export const api = {
   available: false,
+  status: 'none',          // 'ok' | 'nodb' (the API answers but cannot reach its database) | 'none'
+  health: null,            // the /api/health answer (in Development it explains a database error)
   user: null,
 
   // checks that the API and its database answer, then restores the saved login
@@ -54,8 +56,10 @@ export const api = {
       const res = await fetch(`${BASE}/health`, { signal: ctl.signal });
       clearTimeout(timer);
       const h = res.ok ? await res.json() : null;
+      api.health = h;
       api.available = !!(h && h.ok && h.db);
-    } catch { api.available = false; }
+      api.status = api.available ? 'ok' : h && h.ok ? 'nodb' : 'none';
+    } catch { api.available = false; api.status = 'none'; }
     if (api.available && token) {
       try { api.user = await call('GET', '/auth/me'); } catch { setSession(null, null); }
     }

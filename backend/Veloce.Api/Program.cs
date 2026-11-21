@@ -15,7 +15,10 @@ using Veloce.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
-using var bootLog = LoggerFactory.Create(l => l.AddConsole());
+// containers (Vercel, Docker) say which port to listen on through PORT
+if (Environment.GetEnvironmentVariable("PORT") is { Length: > 0 } port)
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+var bootLog = LoggerFactory.Create(l => l.AddConsole());
 var log = bootLog.CreateLogger("Startup");
 
 // ---- database ----
@@ -23,7 +26,7 @@ var log = bootLog.CreateLogger("Startup");
 // Manage User Secrets) or from the host's environment variable ConnectionStrings__Veloce.
 var connection = config.GetConnectionString("Veloce");
 if (string.IsNullOrWhiteSpace(connection))
-    log.LogWarning("ConnectionStrings:Veloce is not set: the API starts, but /api/health reports db=false.");
+    log.LogWarning("ConnectionStrings:Veloce is not set: the API starts without a database. {Hint}", Veloce.Api.Controllers.DbHints.Missing);
 builder.Services.AddDbContext<VeloceDbContext>(o =>
     o.UseSqlServer(string.IsNullOrWhiteSpace(connection) ? "Server=.;Database=Veloce;Connect Timeout=2" : connection,
         sql => sql.EnableRetryOnFailure(3)));
@@ -55,7 +58,7 @@ builder.Services.AddRateLimiter(o =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
 });
 
-// ---- the front end may run on another address (e.g. Netlify without the /api proxy) ----
+// ---- the front end may run on another address (e.g. Vercel without the /api rewrite) ----
 var origins = config.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 {
@@ -77,7 +80,7 @@ builder.Services.AddSwaggerGen(o =>
 
 var app = builder.Build();
 
-// behind a proxy (Netlify, IIS, nginx) the client address comes in X-Forwarded-For
+// behind a proxy (Vercel, IIS, nginx) the client address comes in X-Forwarded-For
 var fwd = new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto };
 fwd.KnownIPNetworks.Clear();
 fwd.KnownProxies.Clear();
@@ -90,16 +93,25 @@ app.UseExceptionHandler(e => e.Run(async ctx =>
     await ctx.Response.WriteAsJsonAsync(new { error = "სერვერის შეცდომა. სცადე მოგვიანებით." });
 }));
 
-// create / update the tables on start (Migrations folder); the site still runs if the database is down
+// create / update the tables once the app is listening (Migrations folder). It runs in the
+// background so the site opens at once even when the database is slow or unreachable;
+// /api/health then explains the problem.
 if (config.GetValue("Database:MigrateOnStartup", true) && !string.IsNullOrWhiteSpace(connection))
 {
-    try
+    app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(() =>
     {
-        using var scope = app.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<VeloceDbContext>().Database.Migrate();
-        log.LogInformation("Database is up to date.");
-    }
-    catch (Exception ex) { log.LogError(ex, "Database migration failed."); }
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<VeloceDbContext>().Database.Migrate();
+            log.LogInformation("Database is up to date.");
+        }
+        catch (Exception ex)
+        {
+            var msg = Veloce.Api.Controllers.DbHints.Message(ex);
+            log.LogError("Database is not reachable: {Message}\n{Hint}", msg, Veloce.Api.Controllers.DbHints.For(msg));
+        }
+    }));
 }
 
 if (app.Environment.IsDevelopment() || config.GetValue("Swagger:Enabled", false))
