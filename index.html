@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<!-- API address when it is not served under /api of this site (see js/api.js); empty = same site -->
+<meta name="veloce-api" content="">
 <script type="importmap">
 { "imports": {
   "three": "./vendor/three/three.module.js",
@@ -20,6 +22,7 @@
 <header class="top">
   <a class="logo" href="#">VELOCE<b>.</b><span>Garage</span></a>
   <p class="sub">3D ავტო-კატალოგი</p>
+  <div class="acct" id="acct" hidden></div>
 </header>
 
 <main class="layout">
@@ -55,9 +58,11 @@
     <div class="tabs" role="tablist">
       <button class="on" data-tab="info" role="tab">ინფო</button>
       <button data-tab="tune" role="tab">ტუნინგი</button>
+      <button data-tab="garage" role="tab" hidden>გარაჟი</button>
     </div>
     <div class="tab on" id="tab-info"></div>
     <div class="tab" id="tab-tune"></div>
+    <div class="tab" id="tab-garage"></div>
   </aside>
 </main>
 

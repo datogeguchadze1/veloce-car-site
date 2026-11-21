@@ -3,11 +3,16 @@
 Guidance for Claude when working in this repository.
 
 ## Project
-VELOCE Garage: a static 3D car catalog with a test-drive mode, in Georgian.
+VELOCE Garage: a 3D car catalog with a test-drive mode, in Georgian, plus a C# backend
+(`backend/`: ASP.NET Core 10 Web API + EF Core + Microsoft SQL Server) for accounts, the global
+leaderboard, "My garage" and the admin panel. The front end works without the backend.
 - Plain ES modules, no build step, no package.json. Three.js r187 is vendored in `vendor/three/`
   (importmap: `three`, `three/addons/` → `vendor/three/jsm/`). Add any extra addon you need by
   copying it from the same Three.js release into `vendor/three/jsm/`.
-- Hosted on GitHub Pages from `main`: https://datogeguchadze1.github.io/veloce-car-site/
+- Hosted on GitHub Pages from `main`: https://datogeguchadze1.github.io/veloce-car-site/ (static only).
+  Netlify (`netlify.toml`) hosts the site and proxies `/api/*` to the API on an ASP.NET host.
+- Secrets (connection string, `Jwt:Key`) never go into the repository (it is public): User Secrets
+  locally, environment variables (`ConnectionStrings__Veloce`, `Jwt__Key`, `Admin__Emails__0`) on the host.
 
 ## Working rules (from the owner)
 - **Push every finished change without asking:** commit → push to the working branch → open a PR →
@@ -30,6 +35,10 @@ VELOCE Garage: a static 3D car catalog with a test-drive mode, in Georgian.
 | `js/driver.js` | code-built driver: helmet, IK arms whose hands follow the steering wheel rim |
 | `js/mirrors.js` | cockpit mirrors: render targets drawn over the screen after the main render |
 | `js/engineSound.js` | synthesised engine / squeal / thud / pop / rain sounds (Web Audio) |
+| `js/api.js` | API client: `api.init()` probes `/api/health` (skipped on github.io), JWT in `localStorage` (`veloce-token`), `api.get/post/put/del` throw `Error` with the server's Georgian `error` text |
+| `js/account.js` | `createAccount(ctx)`: header menu + sign-in modal, garage tab (`#tab-garage`), favourites, leaderboard (`#acctInfo`), tuning save (`#acctTune`), `submitResult()` (sends only personal bests), `worldBest()`, `catalog()` |
+| `admin.html`, `js/admin.js` | admin panel (cars / users / records); seeds `Cars` from `MODELS` |
+| `backend/Veloce.Api/` | `Program.cs` (DI, JWT, rate limit, CORS, Swagger, serves the repo root as the site in Development, migrates on start), `Controllers/` (Auth, Records, Garage, Cars, Admin, Health), `Models/`, `Dtos/`, `Services/` (`TokenService`, `GameRules`, `AdminOnlyAttribute`), `Migrations/` |
 | `tools/` | `inspect-glb.mjs` (node tree / materials), `optimize_gltf.py` (quantise + shrink textures), `glb2gltf.py` (unpack .glb, dedupe images) |
 
 ### `glb` config options (see `js/glbCar.js`)
@@ -52,8 +61,20 @@ VELOCE Garage: a static 3D car catalog with a test-drive mode, in Georgian.
 - Phones matter: prefer `InstancedMesh` and merged geometry, low-res render targets, no per-frame allocations in hot loops.
 - Records live in `localStorage` (`veloce-records`): key `<car id>` for the circuit, `<car id>@<track>` for the others.
 
-## Testing (there is no test suite: test in a real browser)
-- Serve: `python3 -m http.server 8765` from the repo root.
+## Backend
+- Build: `dotnet build backend/Veloce.sln` (SDK 10). Schema change: edit `Models/` + `VeloceDbContext`, then
+  `dotnet ef migrations add <Name>` in `backend/Veloce.Api` (commit the migration).
+- Hooks from the front end: `createDrive({ onResult, worldBest })` (`drive.js` calls `report({ lap })` per lap and
+  `report({ drift })` per drift); `main.js` `applyCatalog()` lays `/api/cars` over `MODELS` and drops hidden cars.
+- Records: one row per (user, car, track) with the best `LapMs` and `Drift`; tracks are listed in `GameRules.Tracks`
+  (keep in sync with `TRACKS` in `drive.js`).
+- Local test DB: `docker run -d --name mssql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=<pw> -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`
+  (start `dockerd` first in the cloud sandbox), run the API with `ConnectionStrings__Veloce=...` and `Admin__Emails__0=boss@test.ge`,
+  then `node backend/tests/api-smoke.mjs` (cleans up after itself; login is rate-limited, wait a minute between runs).
+
+## Testing (there is no front-end test suite: test in a real browser)
+- Serve: `python3 -m http.server 8765` from the repo root (static, no accounts), or run the API
+  (`dotnet run` in `backend/Veloce.Api`): it serves the site at `http://localhost:5080` with `/api`.
 - Drive Chromium with Playwright (`require('playwright')`, `chromium.launch()` needs no options). Load
   `http://localhost:8765/#<car id>`, wait for `window.__garage.state.car` and `#loading.off`.
 - Test-drive hooks: `window.__garage.drive.debug` gives `st` (state), `keys` (inputs: `gas`, `brake`, `left`, `right`, `hand`),
@@ -61,6 +82,7 @@ VELOCE Garage: a static 3D car catalog with a test-drive mode, in Georgian.
   deterministic automated lap (steer towards `track.center[(st.idx + 14) % N]`, target speed from the bend ahead).
 - Before merging, check:
   - an automated lap completes without barrier hits;
+  - backend changes: `dotnet build` is clean and `node backend/tests/api-smoke.mjs` passes against a real SQL Server;
   - screenshots of the changed views look right (outside, cockpit, all three tracks, day / night);
   - no `pageerror` / console errors;
   - the phone layout (`devices['iPhone 13']`: the stage is rotated to landscape with the `forced-landscape` class).
