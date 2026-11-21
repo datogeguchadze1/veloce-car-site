@@ -89,6 +89,12 @@ export function createAccount(ctx) {
   const head = $('#acct');
   function renderHead() {
     if (!head) return;
+    if (api.status === 'nodb') {             // the backend runs but has no database: say why
+      head.hidden = false;
+      head.innerHTML = '<button class="acct-btn acct-warn">⚠ ბაზა არ არის დაკავშირებული</button>';
+      $('.acct-btn', head).onclick = showDbProblem;
+      return;
+    }
     head.hidden = !api.available;
     const u = api.user;
     head.innerHTML = u
@@ -115,6 +121,26 @@ export function createAccount(ctx) {
     const menu = head && $('.acct-menu', head);
     if (menu && !menu.hidden && !head.contains(e.target)) menu.hidden = true;
   });
+
+  function showDbProblem() {
+    const h = api.health || {};
+    const box = document.createElement('div');
+    box.className = 'modal';
+    box.innerHTML = `<div class="mbox">
+      <button type="button" class="mclose" aria-label="დახურვა">✕</button>
+      <h3>⚠ ბაზასთან კავშირი ვერ მოხერხდა</h3>
+      <p>სერვერი მუშაობს, მაგრამ SQL Server-ს ვერ უკავშირდება, ამიტომ შესვლა და რეკორდები დროებით გამორთულია.</p>
+      ${h.hint ? `<p class="db-hint">💡 ${esc(h.hint)}</p>` : ''}
+      ${h.error ? `<pre class="db-err">${esc(h.error)}</pre>` : ''}
+      <p class="mnote">connection string იწერება Visual Studio-ში: Veloce.Api-ზე მარჯვენა ღილაკი → Manage User Secrets → <code>"ConnectionStrings": { "Veloce": "..." }</code>. შეცვლის შემდეგ გაუშვი პროექტი თავიდან.</p>
+      <button class="mgo" data-a="retry">↻ თავიდან შემოწმება</button>
+    </div>`;
+    document.body.appendChild(box);
+    const close = () => box.remove();
+    $('.mclose', box).onclick = close;
+    box.addEventListener('pointerdown', e => { if (e.target === box) close(); });
+    $('[data-a="retry"]', box).onclick = async () => { close(); if (await api.init()) await refreshAll(); else { renderHead(); showDbProblem(); } };
+  }
 
   /* ---------- data ---------- */
   async function loadMine() {
@@ -309,7 +335,7 @@ export function createAccount(ctx) {
     favs,
     async init() {
       const ok = await api.init();
-      if (ok) await refreshAll();
+      if (ok) await refreshAll(); else renderHead();
       return ok;
     },
     info: renderInfoExtras,

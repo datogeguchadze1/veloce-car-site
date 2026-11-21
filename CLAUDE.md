@@ -10,7 +10,10 @@ leaderboard, "My garage" and the admin panel. The front end works without the ba
   (importmap: `three`, `three/addons/` → `vendor/three/jsm/`). Add any extra addon you need by
   copying it from the same Three.js release into `vendor/three/jsm/`.
 - Hosted on GitHub Pages from `main`: https://datogeguchadze1.github.io/veloce-car-site/ (static only).
-  Netlify (`netlify.toml`) hosts the site and proxies `/api/*` to the API on an ASP.NET host.
+  Vercel: two projects from this repo — the static site (repo root, `vercel.json` rewrites `/api/*` to the API
+  project; the destination is a `.invalid` placeholder until the owner fills it in) and the API (Root Directory
+  `backend`, built from `backend/Dockerfile` with the Container runtime; listens on `PORT`). Models are too big
+  for function responses (4.5 MB), so never serve the site from the container.
 - Secrets (connection string, `Jwt:Key`) never go into the repository (it is public): User Secrets
   locally, environment variables (`ConnectionStrings__Veloce`, `Jwt__Key`, `Admin__Emails__0`) on the host.
 
@@ -66,6 +69,8 @@ leaderboard, "My garage" and the admin panel. The front end works without the ba
   `dotnet ef migrations add <Name>` in `backend/Veloce.Api` (commit the migration).
 - Hooks from the front end: `createDrive({ onResult, worldBest })` (`drive.js` calls `report({ lap })` per lap and
   `report({ drift })` per drift); `main.js` `applyCatalog()` lays `/api/cars` over `MODELS` and drops hidden cars.
+- `/api/health` returns `db:false` with `error` + Georgian `hint` in Development (`DbHints` in `HealthController.cs`);
+  the front end then shows "⚠ ბაზა არ არის დაკავშირებული" with that text. Migration runs in the background after start.
 - Records: one row per (user, car, track) with the best `LapMs` and `Drift`; tracks are listed in `GameRules.Tracks`
   (keep in sync with `TRACKS` in `drive.js`).
 - Local test DB: `docker run -d --name mssql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=<pw> -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`

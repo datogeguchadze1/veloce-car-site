@@ -34,7 +34,20 @@
 }
 ```
 
-ეს ფაილი ინახება შენს კომპიუტერზე, პროექტის გარეთ, და GitHub-ზე არასდროს ხვდება.
+ეს ფაილი ინახება შენს კომპიუტერზე, პროექტის გარეთ, და GitHub-ზე არასდროს ხვდება. შეცვლის შემდეგ პროექტი თავიდან გაუშვი (Shift+F5, F5).
+
+connection string-ის მაგალითები:
+
+| სად არის ბაზა | connection string (User Secrets-ის JSON-ში ჩასაწერად) |
+|---|---|
+| კომპიუტერზე დაყენებული SQL Server, Windows-ის ანგარიშით | `Server=localhost;Database=Veloce;Trusted_Connection=True;TrustServerCertificate=True;` |
+| SQL Server Express | `Server=.\\SQLEXPRESS;Database=Veloce;Trusted_Connection=True;TrustServerCertificate=True;` |
+| LocalDB (Visual Studio-სთან ერთად დგება) | `Server=(localdb)\\MSSQLLocalDB;Database=Veloce;Trusted_Connection=True;` |
+| ჰოსტინგი / SQL login | `Server=HOST,1433;Database=DB;User Id=USER;Password=PASS;TrustServerCertificate=True;` |
+
+JSON-ში `\` ორმაგად იწერება (`.\\SQLEXPRESS`). ბაზა თუ ჯერ არ არსებობს, პირველ გაშვებაზე თავისით შეიქმნება.
+
+**შესვლის ღილაკის ნაცვლად თუ „⚠ ბაზა არ არის დაკავშირებული“ ჩანს**, დააჭირე მას: ფანჯარა აჩვენებს SQL Server-ის შეცდომას და რჩევას (მაგ. „დაამატე TrustServerCertificate=True“). იგივე ჩანს `http://localhost:5080/api/health`-ზე და Visual Studio-ს Output ფანჯარაში.
 - `Admin:Emails`: ამ ელ-ფოსტით რეგისტრაცია ან შესვლა ავტომატურად ადმინად გხდის. სია თუ ცარიელია, ადმინი ხდება პირველი დარეგისტრირებული ანგარიში.
 - `Jwt:Key`: Development-ში თუ არ დააყენე, დროებითი გასაღები შეიქმნება (გადატვირთვისას შესვლა გაუქმდება). სერვერზე სავალდებულოა.
 
@@ -78,15 +91,25 @@ Update-Database
 - ტესტ-დრაივზე დასრულებული წრე და დრიფტი სერვერზე იგზავნება მხოლოდ მაშინ, როცა შენს საუკეთესო შედეგს აუმჯობესებს. HUD-ზე ჩანს ადგილი („🏆 ადგილი #3“).
 - ადმინ-პანელი: `admin.html` (მენიუში „⚙ ადმინ-პანელი“). პირველად დააჭირე „🌱 შევსება models.js-იდან“: კატალოგის ტექსტები ბაზაში გადავა და იქიდან შეიცვლება.
 
-## ატვირთვა ინტერნეტში (Azure-ის გარეშე)
-Netlify მხოლოდ სტატიკურ საიტს და JavaScript ფუნქციებს უშვებს, C#-ს ვერ. ამიტომ:
+## ატვირთვა ინტერნეტში: Vercel
+Vercel-ს C#-ის საკუთარი runtime არ აქვს, მაგრამ უშვებს Docker კონტეინერს (Container runtime). `backend/Dockerfile` მზადაა. 3D მოდელები დიდია (ფუნქციის პასუხი ≤ 4.5 MB), ამიტომ საიტი და API **ორ Vercel პროექტად** იტვირთება ერთი რეპოდან:
 
-1. **API** იტვირთება ASP.NET Core ჰოსტინგზე, მაგალითად [MonsterASP.NET](https://www.monsterasp.net/) (უფასო გეგმა: .NET 10 და MSSQL ბაზა). Visual Studio-ში: **`Veloce.Api`-ზე მარჯვენა ღილაკი → Publish**, და ჰოსტინგის publish profile.
-   ჰოსტინგის პანელში დააყენე environment variables (ან `appsettings.Production.json` პირდაპირ სერვერზე):
-   - `ConnectionStrings__Veloce`
-   - `Jwt__Key`
-   - `Admin__Emails__0`
-2. **საიტი** იტვირთება Netlify-ზე (`netlify.toml` უკვე მზადაა). ფაილში მოხსენი კომენტარი `/api/*` წესს და ჩაწერე API-ს მისამართი. Netlify `/api`-ს API-ზე გადაამისამართებს, ამიტომ საიტსა და API-ს ერთი მისამართი აქვთ.
-3. შემოწმება: `https://შენი-საიტი.netlify.app/api/health` → `{"ok":true,"db":true}`.
+**1. API**
+1. vercel.com → **Add New → Project** → აირჩიე `veloce-car-site` რეპო.
+2. **Root Directory**: `backend` (Vercel თვითონ იპოვის `Dockerfile`-ს, Framework: Container).
+3. **Environment Variables**:
+   - `ConnectionStrings__Veloce`: connection string (`TrustServerCertificate=True`-ით);
+   - `Jwt__Key`: შემთხვევითი ტექსტი, 32+ სიმბოლო;
+   - `Admin__Emails__0`: შენი ელ-ფოსტა.
+4. **Deploy**. შემოწმება: `https://<api-პროექტი>.vercel.app/api/health` → `{"ok":true,"db":true}`.
 
-SQL Server ინტერნეტიდან ხელმისაწვდომი უნდა იყოს: კომპიუტერზე დაყენებულ ლოკალურ სერვერს ჰოსტინგი ვერ მიწვდება. ყველაზე მარტივია ჰოსტინგის საკუთარი MSSQL ბაზა.
+**2. საიტი**
+1. რეპოში `vercel.json`-ში `SET-YOUR-API-ADDRESS.invalid` შეცვალე API-ს მისამართით (მაგ. `veloce-api-xxxx.vercel.app`) და დააკომიტე.
+2. vercel.com → **Add New → Project** → იგივე რეპო, **Root Directory** ცარიელი (რეპოს ძირი), Framework: Other. build არ სჭირდება.
+3. **Deploy**. საიტი `/api`-ს API პროექტზე გადაამისამართებს, ასე რომ ორივე ერთ მისამართზე მუშაობს.
+
+**მნიშვნელოვანი:** Vercel ინტერნეტშია, ამიტომ **SQL Server-იც ინტერნეტიდან ხელმისაწვდომი უნდა იყოს**. კომპიუტერზე დაყენებულ ლოკალურ სერვერს (`localhost`, `.\SQLEXPRESS`, LocalDB) Vercel ვერ მიწვდება.
+- გამოდგება ონლაინ MSSQL ბაზა, რომელიც გარე კავშირს უშვებს (მაგ. MonsterASP.NET-ის ან somee.com-ის უფასო MSSQL);
+- Vercel-ის IP მისამართები ცვალებადია, ამიტომ firewall-მა ყველა IP უნდა დაუშვას.
+
+ლოკალური შემოწმება Docker-ით: `docker build -t veloce-api backend` → `docker run -p 8099:80 -e ConnectionStrings__Veloce=... -e Jwt__Key=... veloce-api` → `node backend/tests/api-smoke.mjs http://localhost:8099`.

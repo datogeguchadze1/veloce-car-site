@@ -115,7 +115,7 @@ python3 -m http.server 8000
 # გახსენი http://localhost:8000
 ```
 
-GitHub Pages: Settings → Pages → Deploy from branch → `main`. Netlify: `netlify.toml` (საიტი Netlify-ზე, API ASP.NET ჰოსტინგზე, `/api` გადამისამართებით).
+GitHub Pages: Settings → Pages → Deploy from branch → `main`. Vercel: ორი პროექტი (საიტი რეპოს ძირიდან, API `backend/Dockerfile`-დან), `vercel.json` `/api`-ს API-ზე გადაამისამართებს. ინსტრუქცია: [`backend/README.md`](backend/README.md#ატვირთვა-ინტერნეტში-vercel).
 
 ## სტრუქტურა
 
@@ -137,7 +137,7 @@ GitHub Pages: Settings → Pages → Deploy from branch → `main`. Netlify: `ne
 | `js/account.js` | შესვლის ფანჯარა, მენიუ, „ჩემი გარაჟი“, ლიდერბორდი, შედეგების გაგზავნა |
 | `admin.html`, `js/admin.js`, `css/admin.css` | ადმინ-პანელი |
 | `backend/` | C# API: `Veloce.sln`, `Veloce.Api/` (კონტროლერები, EF Core, მიგრაციები), `tests/api-smoke.mjs` |
-| `netlify.toml` | Netlify-ის პარამეტრები |
+| `vercel.json`, `backend/Dockerfile` | Vercel: საიტის `/api` გადამისამართება და API-ს კონტეინერი |
 | `models/` | 3D მოდელები (თითო საქაღალდე: `scene.gltf`, `scene.bin`, `textures/`, `license.txt`) |
 | `thumbs/` | კატალოგის სურათები (`?thumbs` პარამეტრით ახლიდან იხატება) |
 | `tools/inspect-glb.mjs` | მოდელის ობიექტების, მასალებისა და ზომების ჩამონათვალი |
