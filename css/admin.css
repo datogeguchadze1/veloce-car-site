@@ -1,0 +1,38 @@
+/* admin.html (js/admin.js); builds on style.css */
+body.admin { min-height: 100dvh }
+.adm { flex: 1; width: min(1180px, 100%); margin: 0 auto; padding: 20px 16px 40px }
+.adm-msg { color: var(--mut); text-align: center; padding: 40px 10px; line-height: 1.8 }
+.adm-msg a, .mnote { color: var(--accent) }
+.adm-login { margin: 30px auto }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 18px }
+.stats div { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px }
+.stats b { display: block; font-family: Orbitron, sans-serif; font-size: 1.5rem }
+.stats small { color: var(--mut); font-size: .76rem }
+.adm-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap }
+.adm-tabs button { padding: 8px 16px; border-radius: 99px; border: 1px solid var(--line); color: var(--mut); font-weight: 600 }
+.adm-tabs button.on { background: var(--fg); color: var(--bg); border-color: var(--fg) }
+.adm-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px }
+.adm-bar .mgo { padding: 9px 16px }
+.adm-bar small { color: var(--mut); font-size: .76rem }
+.adm-bar .ok { color: #33d17a; font-weight: 600 }
+.adm-table { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--bg2); border-radius: 12px; overflow: hidden }
+.adm-table th { text-align: left; color: var(--mut); font-weight: 600; padding: 9px 10px; background: var(--bg3) }
+.adm-table td { padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: middle }
+.adm-table td small { display: block; color: var(--mut); font-size: .72rem }
+.adm-table img { width: 84px; aspect-ratio: 16/8; object-fit: cover; border-radius: 6px; display: block; background: #222 }
+.adm-table button { padding: 4px 9px; border-radius: 8px; border: 1px solid var(--line); font-size: .78rem }
+.adm-table button:hover { border-color: var(--accent) }
+.adm-table input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent) }
+.adm-danger { color: #ff7a8a }
+.adm-table .adm-danger:hover { border-color: #ff5d70 }
+.adm-edit { width: min(720px, 100%); max-height: 92dvh; overflow-y: auto }
+.adm-edit h2 small { color: var(--mut); font-size: .75rem; font-weight: 400 }
+.adm-edit h3 { font-size: .9rem; margin-top: 4px }
+.adm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px }
+.adm-edit textarea, .adm-edit select { font: inherit; color: var(--fg); background: var(--bg3); border: 1px solid #ffffff22; border-radius: 10px; padding: 9px 11px; resize: vertical }
+.adm-edit label.chk { flex-direction: row; align-items: center; gap: 8px; color: var(--fg); font-size: .86rem }
+.adm-actions { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap }
+.adm-actions button[type=button] { padding: 10px 12px; border-radius: 12px; border: 1px solid #ff5d7055; font-size: .8rem }
+@media (max-width: 760px) {
+  .adm-table { display: block; overflow-x: auto; white-space: nowrap }
+}

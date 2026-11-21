@@ -5,6 +5,7 @@ import { MODELS, ERAS } from './models.js';
 import { FINISHES, RIM_COLORS, TINTS, LIGHTS, INTERIORS } from './tuning.js';
 import { loadGlbCar } from './glbCar.js';
 import { createDrive, loadRecords, TRACKS } from './drive.js';
+import { createAccount } from './account.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -164,14 +165,18 @@ async function selectModel(id, { push = true } = {}) {
   $('[data-act="inside"]').hidden = !!car.noInterior;
   frameCar(car);
 
-  $('#ovYear').textContent = m.years;
-  $('#ovName').textContent = m.name;
-  $('#ovChassis').textContent = `${m.chassis} · ${m.body}`;
+  setTitle(m);
   $$('#list li').forEach(li => li.classList.toggle('on', li.dataset.id === m.id));
   renderInfo(m);
   renderTuning(m);
   ld.classList.add('off');
   if (push) history.replaceState(null, '', `#${m.id}`);
+}
+
+function setTitle(m) {
+  $('#ovYear').textContent = m.years;
+  $('#ovName').textContent = m.name;
+  $('#ovChassis').textContent = `${m.chassis} · ${m.body}`;
 }
 
 /* ---------- catalog ---------- */
@@ -194,6 +199,7 @@ function renderList() {
     <li data-id="${m.id}" class="${state.model && state.model.id === m.id ? 'on' : ''}">
       <button class="card" aria-label="${m.name} ${m.year}">
         <img alt="" loading="lazy" src="${thumbs[m.id] || `thumbs/${m.id}.jpg`}" onerror="this.onerror=null;this.src='data:image/gif;base64,R0lGODlhAQABAAAAACw='">
+        ${account.favs.has(m.id) ? '<i class="fav-mark" title="რჩეული">★</i>' : ''}
         <span class="meta"><span class="yr">${m.year} · ${m.brand}</span><br><span class="nm">${m.name}</span><br><span class="ch">${m.chassis} · ${m.body}</span></span>
       </button>
     </li>`).join('');
@@ -225,7 +231,9 @@ function renderInfo(m) {
     <p class="desc">${m.desc}</p>
     <dl class="specs">${Object.entries(SPEC_LABELS).map(([k, l]) => `<div><dt>${l}</dt><dd>${m.specs[k]}</dd></div>`).join('')}</dl>
     ${recordsBlock(m)}
+    <div id="acctInfo"></div>
     <p class="note">${modelNote(m)}</p>`;
+  account.info();
 }
 
 /* ---------- tuning panel ---------- */
@@ -251,7 +259,9 @@ function renderTuning(m) {
     ${opt('tint', 'მინის ტონირება', seg('tint', orig(TINTS), tu.tint))}
     ${opt('lights', 'ფარების ფერი', seg('lights', orig(LIGHTS), tu.lights))}
     ${opt('interior', 'სალონის ფერი', seg('interior', orig(INTERIORS), tu.interior))}
+    <div id="acctTune"></div>
     <button class="reset" id="reset">↺ ქარხნული პარამეტრები</button>`;
+  account.tune();
 
   const set = patch => {
     const next = { ...state.car.tuning, ...patch };
@@ -278,6 +288,38 @@ function renderTuning(m) {
     state.car.applyTuning(state.car.baseTuning);
     renderTuning(m);
   };
+}
+
+// Puts a tuning saved in "My garage" on its car (switching to that car first if needed).
+async function applySavedTuning(carId, settings) {
+  if (!state.model || state.model.id !== carId) await selectModel(carId);
+  if (!state.car || state.model.id !== carId) return;
+  const next = { ...state.car.baseTuning, ...settings };
+  state.car.applyTuning(next);
+  saved[carId] = next; persist();
+  renderTuning(state.model);
+}
+
+// Lays the catalog texts edited in the admin panel over js/models.js and drops hidden cars.
+function applyCatalog({ cars, hidden }) {
+  for (const c of cars) {
+    const m = MODELS.find(x => x.id === c.id);
+    if (!m) continue;
+    for (const k of ['brand', 'name', 'chassis', 'years', 'body', 'desc']) if (c[k]) m[k] = c[k];
+    if (c.year) m.year = c.year;
+    if (c.era === 'classic' || c.era === 'modern') m.era = c.era;
+    for (const [k, v] of Object.entries(c.specs || {})) if (v) m.specs[k] = v;
+    if (m.perf && c.vmax > 0) m.perf.vmax = c.vmax;
+    if (m.perf && c.t100 > 0) m.perf.t100 = c.t100;
+  }
+  for (const id of hidden) {
+    const i = MODELS.findIndex(x => x.id === id);
+    if (i >= 0 && MODELS.length > 1) MODELS.splice(i, 1);
+  }
+  renderBrands();
+  renderList();
+  if (state.model && !MODELS.includes(state.model)) selectModel(MODELS[0].id);
+  else if (state.model) { setTitle(state.model); renderInfo(state.model); }
 }
 
 /* ---------- tabs & controls ---------- */
@@ -362,6 +404,8 @@ new ResizeObserver(resize).observe(stage);
 const drive = createDrive({
   scene, camera, controls, keyLight, stage,
   hide: blob.userData.showroom,
+  onResult: r => account.submitResult(r),
+  worldBest: id => account.worldBest(id),
   onExit: () => { updateFov(); frameCar(state.car); renderInfo(state.model); },
 });
 const timer = new THREE.Timer();
@@ -375,6 +419,18 @@ renderer.setAnimationLoop(t => {
   if (drive.active) drive.afterRender(renderer);
 });
 
+/* ---------- accounts (backend/Veloce.Api); without the API the site works as before ---------- */
+const account = createAccount({
+  models: MODELS,
+  tracks: TRACKS,
+  current: () => state.model,
+  select: id => selectModel(id),
+  applyTuning: applySavedTuning,
+  currentTuning: () => ({ ...state.car.tuning }),
+  thumb: id => thumbs[id] || `thumbs/${id}.jpg`,
+  refreshList: () => renderList(),
+});
+
 /* ---------- boot ---------- */
 renderBrands();
 renderEras();
@@ -385,5 +441,10 @@ addEventListener('hashchange', () => { const id = location.hash.slice(1); if (id
 // Catalog pictures are static files (thumbs/<id>.jpg) so opening the site only
 // downloads the selected car. Open the site with ?thumbs to render them anew.
 if (new URLSearchParams(location.search).has('thumbs')) setTimeout(makeThumbs, 300);
+account.init().then(async ok => {
+  if (!ok) return;
+  const cat = await account.catalog();
+  if (cat && (cat.cars.length || cat.hidden.length)) applyCatalog(cat);
+});
 
-window.__garage = { state, camera, controls, selectModel, setInside, renderer, scene, MODELS, drive, thumbs };
+window.__garage = { state, camera, controls, selectModel, setInside, renderer, scene, MODELS, drive, thumbs, account };

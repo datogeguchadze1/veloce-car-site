@@ -1,0 +1,54 @@
+# Try the API from Visual Studio: run the project (F5), then click "Send request" above a request.
+# 1) register or log in, 2) copy the "token" from the answer into @token below.
+@api = http://localhost:5080/api
+@token = paste-the-token-here
+
+### Is the API and the database up?
+GET {{api}}/health
+
+### Register
+POST {{api}}/auth/register
+Content-Type: application/json
+
+{ "email": "me@example.com", "password": "password123", "displayName": "მე" }
+
+### Log in
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "me@example.com", "password": "password123" }
+
+### Who am I
+GET {{api}}/auth/me
+Authorization: Bearer {{token}}
+
+### Send a lap (milliseconds) and a drift score
+POST {{api}}/records
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "carId": "f40", "track": "circuit", "lapMs": 58250, "drift": 640 }
+
+### Leaderboard: best laps with the F40 on the circuit
+GET {{api}}/leaderboard?car=f40&track=circuit&type=lap
+
+### Everyone's best per track for a car
+GET {{api}}/leaderboard/best?car=f40
+
+### My garage
+GET {{api}}/garage
+Authorization: Bearer {{token}}
+
+### Save a tuning
+POST {{api}}/garage/tunings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "carId": "f40", "name": "წითელი", "settings": { "color": "#c8102e", "finish": "gloss", "ride": -2 } }
+
+### Catalog texts from the database
+GET {{api}}/cars
+
+### Admin: numbers
+GET {{api}}/admin/stats
+Authorization: Bearer {{token}}

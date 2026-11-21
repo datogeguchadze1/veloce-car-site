@@ -642,25 +642,46 @@ function buildHud(stage) {
 }
 
 // Overlay with one card per track; resolves through onPick(id) or onCancel().
-function trackPicker(stage, { current, recFor, onPick, onCancel }) {
+function trackPicker(stage, { current, recFor, world, onPick, onCancel }) {
   const el = document.createElement('div');
   el.className = 'track-pick';
   el.innerHTML = `<div class="tp-box"><h3>აირჩიე ტრასა</h3><div class="tp-cards">${Object.entries(TRACKS).map(([id, t]) => {
     const r = recFor(id);
     return `<button data-track="${id}" class="${id === current ? 'cur' : ''}"><span class="tp-ico">${t.icon}</span><b>${t.name}</b>
       <small>${t.desc}</small><small>${(trackLength(id) / 1000).toFixed(2)} კმ · გზის სიგანე ${t.roadW} მ</small>
-      <em>🏁 ${fmt(r.lap)} · 💨 ${r.drift || '—'}</em></button>`;
+      <em>🏁 ${fmt(r.lap)} · 💨 ${r.drift || '—'}</em><em class="tp-world" hidden></em></button>`;
   }).join('')}</div><button class="tp-cancel">გაუქმება</button></div>`;
   const close = () => el.remove();
   el.querySelectorAll('[data-track]').forEach(b => (b.onclick = () => { close(); onPick(b.dataset.track); }));
   el.querySelector('.tp-cancel').onclick = () => { close(); onCancel && onCancel(); };
   el.addEventListener('pointerdown', e => e.stopPropagation());
+  // everyone's best on each track (from the server, when there is one)
+  if (world) world.then(w => {
+    if (!w) return;
+    el.querySelectorAll('[data-track]').forEach(b => {
+      const t = w[b.dataset.track], em = b.querySelector('.tp-world');
+      if (!t || (!t.lap && !t.drift)) return;
+      const who = (x, v) => `${v} <span>${String(x.name).replace(/[&<>"']/g, '')}</span>`;
+      em.innerHTML = `🌍 ${t.lap ? who(t.lap, fmt(t.lap.value / 1000)) : '—'} · 💨 ${t.drift ? who(t.drift, t.drift.value) : '—'}`;
+      em.hidden = false;
+    });
+  });
   stage.appendChild(el);
   return { el, close };
 }
 
 /* ---------- public API ---------- */
-export function createDrive({ scene, camera, controls, keyLight, hide, stage, onExit }) {
+export function createDrive({ scene, camera, controls, keyLight, hide, stage, onExit, onResult, worldBest }) {
+  // a finished lap (seconds) or drift (points) goes to onResult (the server leaderboard when
+  // signed in); a returned text such as "place #3" is shown on the HUD
+  function report(result) {
+    if (!onResult) return;
+    const at = { carId: modelId, track: trackId };
+    Promise.resolve(onResult({ ...at, ...result }))
+      .then(text => { if (text && st.active && modelId === at.carId && trackId === at.track) setTimeout(() => flash(text, 'საერთო ლიდერბორდი'), 900); })
+      .catch(() => {});
+  }
+
   let track = null, hud = null, car = null, engine = null;
   const keys = { gas: 0, brake: 0, left: 0, right: 0, hand: 0 };   // gas / brake are 0 … 1 (analog pedals)
   const isTouch = matchMedia('(pointer: coarse)').matches;
@@ -765,11 +786,11 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
   addEventListener('blur', () => Object.keys(keys).forEach(k => (keys[k] = 0)));
 
   let flashT = null;
-  function flash(text) {
+  function flash(text, label) {
     if (!hud) return;
     const el = hud.querySelector('#dhDrift');
     hud.querySelector('#dhDriftPts').textContent = text;
-    hud.querySelector('#dhDriftLbl').textContent = text.startsWith('+') ? 'ქულა' : text === 'ბრუნები!' ? 'ძალიან მაღალია' : text === 'რეკორდი!' ? 'ახალი საუკეთესო წრე' : 'დაჯახება';
+    hud.querySelector('#dhDriftLbl').textContent = label || text.startsWith('+') ? 'ქულა' : text === 'ბრუნები!' ? 'ძალიან მაღალია' : text === 'რეკორდი!' ? 'ახალი საუკეთესო წრე' : 'დაჯახება';
     el.classList.add('on'); el.dataset.flash = '1';
     clearTimeout(flashT);
     flashT = setTimeout(() => { if (hud) { delete el.dataset.flash; el.classList.remove('on'); } }, 1300);
@@ -968,6 +989,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     picker = trackPicker(stage, {
       current: trackId,
       recFor: id => loadRecords()[recKey(model.id, id)] || {},
+      world: worldBest ? worldBest(model.id) : null,
       onPick: id => { picker = null; st.paused = false; if (wasActive) stop({ keep: true }); start(theCar, model, id); },
       onCancel: () => { picker = null; st.paused = false; },
     });
@@ -1298,6 +1320,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     if (prev > track.N * 0.9 && st.idx < track.N * 0.1) {      // crossed the line going forward
       if (st.armed) {
         const lap = st.time - st.lapStart;
+        report({ lap });
         if (record && record.lap) showDelta(lap - record.lap);
         if (st.best == null || lap < st.best) st.best = lap;
         if (!record || !record.lap || lap < record.lap) {
@@ -1343,6 +1366,7 @@ export function createDrive({ scene, camera, controls, keyLight, hide, stage, on
     } else if (st.drift > 0 && (st.driftIdle += dt) > 0.7) {
       const pts = Math.round(st.drift);
       st.score += pts;
+      if (pts > 0) report({ drift: pts });
       if (pts > st.driftBest) { st.driftBest = pts; saveRecord(recKey(modelId, trackId), { drift: pts }); }
       flash(`+${pts}`);
       st.drift = 0; st.driftT = 0;

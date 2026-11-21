@@ -1,0 +1,27 @@
+# Netlify: the 3D site is static (no build step) and is published from the repository root.
+# The C# API (backend/Veloce.Api) cannot run on Netlify: it runs on an ASP.NET Core host
+# (e.g. MonsterASP.NET) and Netlify forwards /api to it, so the site and the API share one
+# address (no CORS, no extra settings in the front end).
+[build]
+  publish = "."
+  command = ""
+
+# Uncomment and put the API's address here once it is online:
+# [[redirects]]
+#   from = "/api/*"
+#   to = "https://YOUR-API.runasp.net/api/:splat"
+#   status = 200
+#   force = true
+
+# the backend sources and tools are not part of the website
+[[redirects]]
+  from = "/backend/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/tools/*"
+  to = "/404.html"
+  status = 404
+  force = true
