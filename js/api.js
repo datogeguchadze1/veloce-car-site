@@ -50,16 +50,25 @@ export const api = {
   async init() {
     // GitHub Pages only hosts static files: do not even ask
     if (!(meta && meta.content) && location.hostname.endsWith('github.io')) return false;
+    // The first check can take a while: the API opens a connection to SQL Server, which may be
+    // far away (an online database) and is creating its tables on the first start.
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 30000);
     try {
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 5000);
       const res = await fetch(`${BASE}/health`, { signal: ctl.signal });
-      clearTimeout(timer);
       const h = res.ok ? await res.json() : null;
       api.health = h;
       api.available = !!(h && h.ok && h.db);
       api.status = api.available ? 'ok' : h && h.ok ? 'nodb' : 'none';
-    } catch { api.available = false; api.status = 'none'; }
+    } catch (ex) {
+      api.available = false;
+      // no answer in time: a static host fails at once (404), so a timeout means the API is there
+      // but its database does not respond
+      api.status = ctl.signal.aborted ? 'nodb' : 'none';
+      api.health = ctl.signal.aborted
+        ? { ok: true, db: false, error: 'timeout', hint: 'სერვერი ბაზისგან 30 წამში პასუხს ვერ იღებს. შეამოწმე connection string-ის Server=... და რომ ბაზაზე გარე წვდომა (Remote access) ჩართულია.' }
+        : null;
+    } finally { clearTimeout(timer); }
     if (api.available && token) {
       try { api.user = await call('GET', '/auth/me'); } catch { setSession(null, null); }
     }

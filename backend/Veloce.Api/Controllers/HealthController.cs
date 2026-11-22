@@ -18,9 +18,15 @@ public class HealthController(VeloceDbContext db, IHostEnvironment env, IConfigu
             return Result(false, "ConnectionStrings:Veloce is empty", DbHints.Missing);
         try
         {
-            await db.Database.OpenConnectionAsync();
+            // answer within 20 s even when the server does not respond (the page waits 30 s)
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await db.Database.OpenConnectionAsync(cts.Token);
             await db.Database.CloseConnectionAsync();
             return new { ok = true, db = true };
+        }
+        catch (OperationCanceledException)
+        {
+            return Result(false, "timeout (20 s)", DbHints.For("timeout"));
         }
         catch (Exception ex)
         {

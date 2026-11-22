@@ -370,3 +370,4 @@ body.driving.forced-landscape .stage { inset: auto; top: 0; left: 0; width: 100d
 .mbox h3 { font-size: 1.05rem }
 .mbox p { font-size: .88rem }
 .mbox code { font-size: .78em; background: #0006; padding: 1px 4px; border-radius: 4px }
+.acct-wait { display: inline-block; color: var(--mut); cursor: default }
