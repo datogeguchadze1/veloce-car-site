@@ -334,6 +334,10 @@ export function createAccount(ctx) {
   return {
     favs,
     async init() {
+      if (head && !(location.hostname.endsWith('github.io'))) {   // the first check may take a while
+        head.hidden = false;
+        head.innerHTML = '<span class="acct-btn acct-wait">⏳ სერვერთან კავშირი…</span>';
+      }
       const ok = await api.init();
       if (ok) await refreshAll(); else renderHead();
       return ok;
